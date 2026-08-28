@@ -10,7 +10,11 @@ PostgreSQLはDockerでローカル起動する（[docker-compose.yml](../../../D
 ```sql
 CREATE TABLE users (
   id UUID PRIMARY KEY,
-  tags TEXT[] NOT NULL DEFAULT '{}'   -- 選択したテーマタグ
+  tags TEXT[] NOT NULL DEFAULT '{}',           -- 選択したテーマタグ
+  delivery_time TIME NOT NULL DEFAULT '06:00', -- 配信時刻（プロフィール画面の設定）
+  length_minutes INT NOT NULL DEFAULT 10,      -- ポッドキャストの長さ（5・10・15のいずれか）
+  reset_count INT NOT NULL DEFAULT 0,          -- 本日の「今日の番組をリセット」実行回数（上限3）
+  reset_date DATE                              -- reset_countが対象としている日付。配信時刻を跨いだら0にリセット
 );
 
 CREATE TABLE programs (
@@ -40,6 +44,7 @@ CREATE TABLE chapters (
 
 ## 関連
 - 前のステップ：[⑥音声化](./05-tts.md)
-- `chapters.source_url` / `chapters.audio_path`は[プレイヤー](../../../frontend/docs/features/player.md)がバックエンドAPI経由で取得して使用
+- `chapters.source_url` / `chapters.audio_path` / `chapters.script`は[プレイヤー](../../../frontend/docs/features/player.md)がバックエンドAPI経由で取得して使用
 - `users.tags`は[オンボーディング](../../../frontend/docs/features/onboarding.md)がバックエンドAPI経由で書き込む
+- `users.delivery_time` / `users.length_minutes` / `users.reset_count` / `users.reset_date`はプロフィール画面の設定・「今日の番組をリセット」機能がバックエンドAPI経由で読み書きする（`PUT /api/users/{userId}/settings`、`POST /api/users/{userId}/programs/latest/regenerate`）
 - APIの形状は[docs/api-contract.yaml](../../../docs/api-contract.yaml)を参照

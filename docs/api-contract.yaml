@@ -32,15 +32,21 @@ info:
     クライアントが自前で UUID を生成しない理由：`programs.user_id` が外部キー制約付きのため、
     存在しないIDでの書き込みを防ぐにはサーバー発行が確実。
 
+    ## 表示名（ニックネーム）の扱い
+    UIモック（`/mock`）ではプロフィール画面にユーザー名を表示するが、ログイン機能がスコープ外である以上
+    サーバー側でアカウントに紐づく表示名を管理する意味は薄い。表示名はバックエンドAPIの対象外とし、
+    フロントエンドの `localStorage` にのみ保存するクライアントローカルな値として扱う
+    （どのAPIレスポンスにも `name` 相当のフィールドは含まれない）。
+
 servers:
   - url: http://localhost:8080
     description: ローカル開発環境（NEXT_PUBLIC_API_BASE_URL、詳細は frontend/CLAUDE.md#環境変数）
 
 tags:
   - name: users
-    description: ユーザー識別・テーマタグ（オンボーディング）
+    description: ユーザー識別・テーマタグ・配信設定（オンボーディング・プロフィール）
   - name: programs
-    description: 番組の取得（ホーム・プレイヤー）
+    description: 番組の取得・履歴・作り直し（ホーム・プレイヤー・プロフィール）
   - name: audio
     description: 音声ファイルの配信
   - name: demo
@@ -67,6 +73,80 @@ paths:
                 $ref: "#/components/schemas/CreateUserResponse"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /api/users/{userId}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: ユーザープロフィールを取得する（プロフィール画面）
+      description: |
+        プロフィール画面（テーマタグ・配信設定・統計）の初期表示に使う。フロントエンドは
+        `PUT /api/users/{userId}/tags` や `PUT /api/users/{userId}/settings` を呼ぶ前に、
+        まずこれで現在の設定値を取得してフォームに反映する。
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "404":
+          description: "`userId` が存在しない"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: USER_NOT_FOUND
+                  message: "指定されたユーザーが見つかりません"
+
+  /api/users/{userId}/settings:
+    put:
+      operationId: putUserSettings
+      tags: [users]
+      summary: 配信時刻・番組の長さを設定する（プロフィール）
+      description: |
+        配信時刻とポッドキャストの長さを保存する。全件を置き換える冪等な操作のため `PUT` とする。
+        `PUT /api/users/{userId}/tags` とはリソースを分けている
+        （タグ＝オンボーディングで決める内容、設定＝プロフィールで後から調整する内容、と
+        画面の持ち主が異なるため）。
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsRequest"
+            example:
+              deliveryTime: "06:00"
+              lengthMinutes: 10
+      responses:
+        "204":
+          description: 保存成功（本文なし）
+        "400":
+          description: "`deliveryTime`が`HH:MM`形式でない、または`lengthMinutes`が許可値（5/10/15）以外"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: INVALID_SETTINGS
+                  message: "lengthMinutesは5・10・15のいずれかで指定してください"
+        "404":
+          description: "`userId` が存在しない"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: USER_NOT_FOUND
+                  message: "指定されたユーザーが見つかりません"
 
   /api/users/{userId}/tags:
     put:
@@ -148,6 +228,102 @@ paths:
                     error:
                       code: PROGRAM_NOT_FOUND
                       message: "指定されたユーザーの番組がまだ生成されていません"
+
+  /api/users/{userId}/programs:
+    get:
+      operationId: listPrograms
+      tags: [programs]
+      summary: 過去の番組一覧を取得する（ホームの履歴）
+      description: |
+        ホーム画面の「履歴」セクション用。作成日時の降順で返す。個別記事の全文検索や
+        ビッグデータ的な分析は行わない（[Requirements.md](../Requirements.md)のスコープ外参照）、
+        あくまで直近の番組メタデータの一覧に限定した軽量なエンドポイント。
+
+        各要素の `title` は、その番組内で最も重要度が高いチャプター（`position: 0`）の
+        `title` をサーバー側でそのまま採用したもの（新たに番組全体の要約タイトルを
+        生成するわけではない）。
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+          description: 取得件数の上限
+      responses:
+        "200":
+          description: "取得成功（1件も無ければ `items` は空配列）"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgramHistoryResponse"
+        "404":
+          description: "`userId` が存在しない"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: USER_NOT_FOUND
+                  message: "指定されたユーザーが見つかりません"
+
+  /api/users/{userId}/programs/latest/regenerate:
+    post:
+      operationId: regenerateLatestProgram
+      tags: [programs]
+      summary: 今日の番組を作り直す（プロフィールの設定）
+      description: |
+        保存済みの `tags` / `lengthMinutes` を使って、その日の番組をもう一度生成し直し、
+        `GET /api/users/{userId}/programs/latest` が返す内容を差し替える。
+
+        `POST /api/demo/generate` とは異なり、こちらは**永続化する**（既存の
+        `programs`/`chapters` 行を新しい生成結果で置き換える）。パイプライン全体
+        （記事取得→LLM→TTS）を再実行するため負荷が高く、**1ユーザーにつき1日3回まで**に
+        制限する。回数は `users.reset_count` で管理し、`users.reset_date`（配信時刻を
+        跨いだ日付）が変わった時点でサーバー側が自動的に0へリセットする
+        （[06-storage.md](../backend/docs/pipeline/06-storage.md)参照）。
+
+        同期実行のため、`POST /api/demo/generate` と同様にレスポンスまで数十秒〜1分程度
+        かかる想定でタイムアウトを設定すること。
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: 作り直し成功。新しい番組を返す
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "404":
+          description: "`userId` が存在しない、または作り直す対象の番組がまだ無い"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: PROGRAM_NOT_FOUND
+                  message: "作り直す対象の番組がまだ生成されていません"
+        "429":
+          description: 本日の上限（3回）に達している
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: RESET_LIMIT_EXCEEDED
+                  message: "本日の作り直し回数の上限（3回）に達しています"
+        "502":
+          description: "外部プロバイダの呼び出し失敗（`POST /api/demo/generate`と同じ`UPSTREAM_*`のcode体系）"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/programs/{programId}:
     get:
@@ -446,16 +622,38 @@ components:
 
     Program:
       type: object
-      required: [id, createdAt, totalDurationSec, chapters]
+      required: [id, title, createdAt, greetingText, changeCount, totalDurationSec, chapters]
       properties:
         id:
           type: string
           format: uuid
           example: 8f14e45f-ceea-4c9e-8b52-1c4d5d5f6a12
+        title:
+          type: string
+          description: |
+            番組の代表タイトル。最も重要度が高いチャプター（`position: 0`）の`title`を
+            サーバー側でそのまま流用したもの（番組全体を要約する専用のタイトルを
+            別途生成するわけではない）。ホームの履歴一覧・プレイヤーの見出しに使う
+          example: "AI開発の新モデルが発表、性能が前世代比2倍に"
         createdAt:
           type: string
           format: date-time
           example: "2026-08-29T06:00:00+09:00"
+        greetingText:
+          type: string
+          description: |
+            番組冒頭の挨拶文（台本の書き出しと同じ文面）。ホーム画面の
+            「ゲストさん、おはようございます。」に続けて表示する本文パート。
+            ユーザーの表示名はクライアントローカルの値のため、このテキストには含まない
+            （本ファイル冒頭「表示名（ニックネーム）の扱い」参照）
+          example: "今日はAI関連で3件、動きがあります。"
+        changeCount:
+          type: integer
+          description: |
+            前日の番組からの差分件数（新規・更新されたトピック数）。`chapters.length`とは
+            別概念で、重要度判定ステップ（[03-score.md](../backend/docs/pipeline/03-score.md)）が
+            算出する。ホーム画面の「今日はn件、動きがあります」の`n`に対応
+          example: 3
         totalDurationSec:
           type: integer
           description: 番組合計の再生時間（秒）
@@ -473,6 +671,7 @@ components:
         - title
         - sourceUrl
         - sourceName
+        - script
         - audioUrl
         - durationSec
         - importanceScore
@@ -495,6 +694,18 @@ components:
         sourceName:
           type: string
           example: Example News
+        script:
+          type: string
+          description: |
+            このチャプターの読み上げ台本全文（[04-script.md](../backend/docs/pipeline/04-script.md)で
+            生成されたもの、`chapters.script`カラムに対応）。プレイヤー画面でSpotifyの歌詞表示のように
+            現在の読み上げ箇所をハイライトする用途に使う。
+
+            **注意：文単位のタイムスタンプは持たない。** 台本と音声を強制アライメントする仕組みは
+            現状のパイプラインに無いため、クライアント側は音声の再生位置（`durationSec`に対する
+            経過秒数の比率）から表示行を按分計算する、疑似的な同期にとどまる
+            （厳密な同期は未決定事項参照）。改行区切りの複数文からなる
+          example: "まず注目は新しい言語モデルの発表です。\n前世代と比べて推論速度が2倍になったとのことです。"
         audioUrl:
           type: string
           example: /api/audio/8f14e45f-ceea-4c9e-8b52-1c4d5d5f6a12/c56a4180-65aa-42ec-a945-5fd21dec0538
@@ -507,6 +718,92 @@ components:
         importanceScore:
           type: integer
           example: 5
+
+    UserProfile:
+      type: object
+      required: [userId, tags, deliveryTime, lengthMinutes, resetsUsedToday, resetsLimitPerDay, stats]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["AI", "京都"]
+        deliveryTime:
+          type: string
+          description: "`HH:MM`形式（24時間表記）"
+          example: "06:00"
+        lengthMinutes:
+          type: integer
+          enum: [5, 10, 15]
+          example: 10
+        resetsUsedToday:
+          type: integer
+          description: "本日`POST /api/users/{userId}/programs/latest/regenerate`を呼んだ回数"
+          example: 0
+        resetsLimitPerDay:
+          type: integer
+          description: 1日あたりの作り直し上限（固定値・現状3）
+          example: 3
+        stats:
+          type: object
+          required: [totalPrograms, totalDurationSec]
+          properties:
+            totalPrograms:
+              type: integer
+              description: これまでに生成された番組数（全期間）
+              example: 12
+            totalDurationSec:
+              type: integer
+              description: |
+                生成された番組の合計収録時間（秒）。実際に聴取した時間の計測（再生イベントの
+                トラッキング）は行っていないため「合計再生分数」ではなく収録時間の合計である点に注意
+              example: 8880
+
+    SettingsRequest:
+      type: object
+      required: [deliveryTime, lengthMinutes]
+      properties:
+        deliveryTime:
+          type: string
+          description: "`HH:MM`形式（24時間表記）"
+          example: "06:00"
+        lengthMinutes:
+          type: integer
+          enum: [5, 10, 15]
+          example: 10
+
+    ProgramSummary:
+      type: object
+      required: [id, title, createdAt, totalDurationSec]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: "円安基調が継続、輸出企業への影響は"
+        createdAt:
+          type: string
+          format: date-time
+        totalDurationSec:
+          type: integer
+          example: 660
+
+    ProgramHistoryResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProgramSummary"
+        total:
+          type: integer
+          description: 条件に合致する全件数（`limit`で切られる前の総数）
+          example: 12
 
     Error:
       type: object
@@ -522,8 +819,10 @@ components:
               enum:
                 - USER_NOT_FOUND
                 - INVALID_TAGS
+                - INVALID_SETTINGS
                 - PROGRAM_NOT_FOUND
                 - AUDIO_NOT_FOUND
+                - RESET_LIMIT_EXCEEDED
                 - UPSTREAM_FETCH_FAILED
                 - UPSTREAM_LLM_FAILED
                 - UPSTREAM_TTS_FAILED
@@ -535,3 +834,6 @@ x-open-questions:
   - "プリセットタグ一覧の管理場所（フロントエンドのハードコード／バックエンドでマスタ管理）と、`PUT /api/users/{userId}/tags`でのバリデーション有無"
   - "`POST /api/demo/generate`が一時保存する音声ファイルの掃除タイミング（TTL／起動時クリーンアップ等）"
   - "`POST /api/batch/run`の同時実行防止（多重起動をどう防ぐか。ロックファイル／DBフラグ等）"
+  - "`Chapter.script`の文単位タイムスタンプ（真のカラオケ風同期表示をやるなら、VOICEVOXのモーラ単位タイミングを使ったアライメント生成が必要。MVPでは`durationSec`からの按分表示で妥協している）"
+  - "波形シークバーの実データ化（現状UIモックは疑似ランダムな波形を描画しているだけで、実際の音声波形ピーク値をAPIから返す仕組みは無い。`Chapter`に`waveformPeaks: number[]`を追加するかどうか）"
+  - "`POST .../programs/latest/regenerate`の同時多重実行防止（同じuserIdから連打された場合の排他制御）"
