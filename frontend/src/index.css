@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* デザイン方針: frontend/docs/design.md（Spotify参考・ダークテーマ基調） */
+:root {
+  --bg: #0d0d0f;
+  --bg-elevated: #171719;
+  --bg-elevated-2: #232326;
+  --bg-elevated-3: #2e2e32;
+  --text-primary: #ffffff;
+  --text-secondary: #a3a3a8;
+  --text-tertiary: #6f6f76;
+  --accent: #22c55e;
+  --accent-glow: rgba(34, 197, 94, 0.35);
+  --danger: #ef4444;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic",
+    "Noto Sans JP", sans-serif;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-elevated-2: var(--bg-elevated-2);
+  --color-bg-elevated-3: var(--bg-elevated-3);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --font-sans: var(--font-sans);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+* {
+  box-sizing: border-box;
+}

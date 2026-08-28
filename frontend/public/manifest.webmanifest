@@ -1,0 +1,17 @@
+{
+  "name": "通学ラジオ",
+  "short_name": "通学ラジオ",
+  "description": "通学中に聞ける、テーマ登録型のパーソナルAIラジオ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d0d0f",
+  "theme_color": "#0d0d0f",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
