@@ -1,6 +1,6 @@
 # CLAUDE.md — プロジェクト指示書
 
-このファイルはClaude Codeがこのリポジトリで作業する際に最初に読み込む前提知識です。詳細な機能要件は `REQUIREMENTS.md`、AIパイプラインの設計は `PIPELINE_DESIGN.md` を参照してください。
+このファイルはClaude Codeがこのリポジトリで作業する際に最初に読み込む前提知識です。詳細な機能要件は `Requirements.md`、AIパイプラインの設計は `Pipeline design.md`、ディレクトリ構成は `Directory structure.md` を参照してください。
 
 ## プロジェクト概要
 通学中に聞ける、テーマ登録型のパーソナルAIラジオPWA。関西ビギナーズハッカソン vol.8（2.5日開発）向けのプロトタイプ。
@@ -18,35 +18,8 @@
   - 開発時はDockerでローカル起動、デモ用はCloud Runの無料枠にVOICEVOX ENGINEをデプロイ想定（Phase 1で早めに動作確認する）
 - データ保存：Firebase（Firestore + Storage、Sparkプラン＝無料枠のままでOK。Functionsは使わないため）
 
-## ディレクトリ構成（提案）
-```
-/app                 Next.js App Router
-  /onboarding        テーマ選択画面
-  /home              番組準備完了画面
-  /player            プレイヤー画面
-/lib
-  /pipeline          収集→正規化→重複除去→重要度判定→台本化→音声化（オーケストレーション）
-    fetch.ts
-    dedupe.ts
-    score.ts
-    script.ts
-    tts.ts
-  /providers         外部サービス実装（差し替え可能にする層）
-    /fetcher
-      types.ts        共通インターフェース
-      jina.ts          jina.ai Reader実装（デフォルト）
-      firecrawl.ts     firecrawl実装（代替）
-    /llm
-      types.ts        共通インターフェース
-      gemini.ts        Gemini実装（デフォルト）
-    /tts
-      types.ts        共通インターフェース
-      voicevox.ts      VOICEVOX実装（デフォルト）
-  /firebase          Firestore/Storageクライアント
-/public              PWAマニフェスト、アイコン
-/scripts             デモ用の軽量パイプライン実行スクリプト
-```
-`pipeline/*.ts`は`providers/*/types.ts`のインターフェースだけを参照し、実装はプロバイダファイル単位で完結させる。プロバイダを変更する場合は環境変数（例：`TTS_PROVIDER=voicevox`）で切り替え、インターフェースを満たす新しいファイルを1つ追加するだけで済む設計にする（`pipeline`側のコードは変更不要）。
+## ディレクトリ構成
+`Directory structure.md` を参照。開発中に階層が変わりやすいため、CLAUDE.mdとは別ファイルで管理している。
 
 ## デザイン方針
 参考デザインとして **Spotify** を採用する。
