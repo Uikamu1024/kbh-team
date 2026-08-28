@@ -6,11 +6,17 @@
 通学中に聞ける、テーマ登録型のパーソナルAIラジオPWA。関西ビギナーズハッカソン vol.8（2.5日開発）向けのプロトタイプ。
 
 ## 技術スタック
+チーム開発かつハッカソンのため、**無償で完結する構成**を採用する。
 - フロントエンド：Next.js（App Router）、PWA対応
+- バックエンド：**Next.js API Routes（Route Handlers）**をそのままバックエンドとして使用。別サーバーは立てない
+  - 理由：Firebase Cloud Functionsは無料のSparkプランだと外部API（jina.ai/LLM/TTS）への通信ができずBlaze（従量課金）登録が必要になるため回避
+- ホスティング：**Vercel（Hobbyプラン・無料）**
 - 記事取得：jina.ai Reader（第一候補）／firecrawl free tier（代替）
-- LLM：要約・台本生成用（Gemini or Claude API、キーは環境変数で管理）
-- TTS：チャプターごとの音声生成（2話者の会話形式に対応できるものを選定）
-- データ保存：Firebase（Firestore + Storage）
+- LLM：**Gemini API（Google AI Studio 無料枠）**
+  - 理由：Claude APIには恒常的な無料枠がなくトライアルクレジットのみのため
+- TTS：**VOICEVOX**（無料・オープンソース、キャラクターごとに声が異なるため「2人会話形式」の要件に合致）
+  - 開発時はDockerでローカル起動、デモ用はCloud Runの無料枠にVOICEVOX ENGINEをデプロイ想定（Phase 1で早めに動作確認する）
+- データ保存：Firebase（Firestore + Storage、Sparkプラン＝無料枠のままでOK。Functionsは使わないため）
 
 ## ディレクトリ構成（提案）
 ```
@@ -65,5 +71,5 @@ FIRECRAWL_API_KEY=
 ```
 
 ## 現時点の未決定事項（着手前に確認）
-- LLM/TTSの具体的なプロバイダ選定
 - ホワイトリスト対象サイトの最終リスト
+- VOICEVOX ENGINEのCloud Run無料枠でのデモ運用が安定するか（Phase 1で検証）
