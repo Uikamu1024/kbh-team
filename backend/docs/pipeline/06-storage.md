@@ -6,6 +6,13 @@
 
 PostgreSQLはDockerでローカル起動する（[docker-compose.yml](../../../Directory%20structure.md)参照）。
 
+## 入力
+- `userId: uuid`
+- `greetingText: string` / `changeCount: int`（[④重要度判定](./03-score.md)・[⑤要約・台本化](./04-script.md)の出力）
+- `chapters: []ChapterAudio`（[⑥音声化](./05-tts.md)の出力）
+
+`POST /api/demo/generate`から呼ばれた場合はこのステップ自体をスキップする（DBに書き込まない。[backend/docs/api-handlers.md](../api-handlers.md)参照）。
+
 ## PostgreSQLスキーマ（案）
 ```sql
 CREATE TABLE users (
@@ -20,7 +27,9 @@ CREATE TABLE users (
 CREATE TABLE programs (
   id UUID PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES users(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  greeting_text TEXT NOT NULL,   -- 冒頭挨拶文。API応答のgreetingTextに対応（[04-script.md](./04-script.md)参照）
+  change_count INT NOT NULL      -- 前日からの差分件数。API応答のchangeCountに対応（[03-score.md](./03-score.md)参照）
 );
 
 CREATE TABLE chapters (

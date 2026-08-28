@@ -28,7 +28,7 @@
 | 記事取得 | jina.ai Reader／firecrawl free tier | [backend/docs/pipeline/01-fetch.md](backend/docs/pipeline/01-fetch.md) |
 | LLM | Gemini API（無料枠） | [backend/docs/pipeline/04-script.md](backend/docs/pipeline/04-script.md) |
 | TTS | VOICEVOX（Dockerでローカル起動） | [backend/docs/pipeline/05-tts.md](backend/docs/pipeline/05-tts.md) |
-| バッチ実行 | ローカルスクリプト実行 or cron | [backend/CLAUDE.md](backend/CLAUDE.md#バッチ実行) |
+| バッチ実行 | ローカルスクリプト実行 or cron | [backend/docs/api-handlers.md](backend/docs/api-handlers.md) |
 
 各技術の選定理由は、全体方針に関わるものは[Tech stack rationale.md](Tech%20stack%20rationale.md)、個別のものは各サービスのCLAUDE.mdを参照。
 
@@ -44,15 +44,15 @@
 ## 開発方針・優先順位
 1. **保守性を優先**：記事取得・LLM・TTSは`/backend/internal/providers`配下にプロバイダ単位でファイル分割し、共通インターフェース（`types.go`）経由で`/backend/internal/pipeline`から呼び出す。TTSやLLMのプロバイダ（VOICEVOXやGeminiなど）を途中で変える可能性があるため、実装差し替え時に他のコードへ影響が及ばないようにする（詳細：[backend/CLAUDE.md](backend/CLAUDE.md#プロバイダ層の設計原則)）
 2. **フロントエンド／バックエンドは疎結合に**：フロントエンドはバックエンドのHTTP APIのみを叩く。[docs/api-contract.yaml](docs/api-contract.yaml)でAPIのレスポンス形式（JSON）を先に決めてから両方の実装に着手する（進め方の詳細は[Team workflow.md](Team%20workflow.md)参照）
-3. フェーズ分けで進める：
+3. フェーズ分けで進める。**前のPhaseが通るまで次のPhaseに着手しない**：
    - Phase 1：Goで1テーマ収集→要約→TTSの一気通貫パイプラインを通す（モックデータでもいい、CLIでも可）
    - Phase 2：PostgreSQL/ローカルストレージ連携、バックエンドAPI化、複数テーマ対応
    - Phase 3：フロントエンドからAPI経由でプレイヤーUI・1タップ起動を実装
-   - Phase 4：重要度判定・会話形式TTS・バッチ実行の自動化などの磨き込み
+   - Phase 4：重要度判定の精度、会話形式TTS、バッチ実行の自動化などの磨き込み
+   - Phase 5：プロフィール周りの拡張（配信時刻・番組の長さ設定、履歴一覧、番組の作り直し。詳細：[backend/docs/api-handlers.md](backend/docs/api-handlers.md)）
 4. [Requirements.md](Requirements.md)の「スコープ外」に書かれた機能は、明示的な指示がない限り実装しない
 
 ## 現時点の未決定事項（着手前に確認）
 プロダクト全体に関わるものをここに置く。各サービス固有の未決定事項は該当するCLAUDE.mdに記載している（[backend/CLAUDE.md](backend/CLAUDE.md#未決定事項)）。
 
-- `docs/api-contract.yaml`のエラーレスポンス形式、`userId`の識別方法（ログイン機能はスコープ外のため暫定対応が必要。フロントエンド・バックエンド双方の合意が必要）
 - 審査員に共有する「デモURL」をどうするか（README.mdに項目があるが、完全ローカル構成だと公開URLがない。発表者のPCでライブ実演のみにするか、デモ時だけ一時的に公開するか）
