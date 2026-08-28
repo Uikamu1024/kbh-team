@@ -1,69 +1,17 @@
 # AIパイプライン設計
 
+各ステップの詳細は実装ファイル単位（`/lib/pipeline/*.ts`）で分割し、`docs/pipeline/`配下に置いている。
+
 ## 全体フロー
 ```
 ①収集 → ②正規化 → ③重複除去 → ④重要度判定 → ⑤要約・台本化 → ⑥音声化 → ⑦保存
 ```
-
-## ① 収集（fetch.ts）
-- テーマ（タグ）ごとに紐付けたホワイトリストサイト・RSSフィードから記事を取得
-- 取得元は`/lib/providers/fetcher`配下のプロバイダ実装を呼び出す形にする。jina.ai Reader（`providers/fetcher/jina.ts`、`https://r.jina.ai/<URL>` で本文をMarkdown化して取得）を第一候補とし、詰まった場合は`providers/fetcher/firecrawl.ts`（firecrawl free tier）に切替。切替は`types.ts`の共通インターフェースを満たす限り`fetch.ts`側の変更なしで行える
-- 取得件数はテーマあたり10〜20件に制限（レイテンシ・トークン消費対策）
-
-## ② 正規化
-- タイトル・本文（先頭数百字で可）・公開日時・ソース名を共通フォーマットに変換
-- 全文取得が失敗するケースを想定し、ディスクリプション/リード文ベースの要約でも成立する設計にする
-
-## ③ 重複除去（dedupe.ts）
-- タイトルの文字列類似度（or embeddingのコサイン類似度）が閾値以上の記事を同一トピックとみなし1本化
-- 同一トピックの記事数は④の重要度判定にそのまま使う
-
-## ④ 重要度判定（score.ts）
-判定材料：
-- 複数ソースで同時報道されているか（③の結果を流用）
-- 前日の番組で扱ったトピックとの関連性（差分検知）
-- LLMによる重要度スコア（1〜5点）
-スコア上位のトピックを番組冒頭に配置し、「今日はこれが一番動いています」の一言を挿入する。
-
-このロジックは「質の低い記事の除外」も兼ねる（低スコアの記事は番組から除外 or 末尾に回す）。
-
-## ⑤ 要約・台本化（script.ts）
-- `/lib/providers/llm`配下のプロバイダ実装（デフォルト：`providers/llm/gemini.ts`、Gemini API）にLLM呼び出し部分を委譲する。プロバイダ変更時は`types.ts`のインターフェースを満たす新規ファイルを追加するのみで、`script.ts`側は変更不要
-- LLMに記事群を渡し、口語体のラジオ台本を生成
-- 2人の話者による会話形式を採用（単調さ対策）
-- プロンプト設計の骨子：
-  - 冒頭に挨拶＋前日との差分言及
-  - 各トピックへの自然な繋ぎ
-  - 記事1本＝1チャプターとして区切って出力（後でUIのシークバー・記事リンク展開と対応させるため）
-  - 末尾に締めの一言
-
-## ⑥ 音声化（tts.ts）
-- `/lib/providers/tts`配下のプロバイダ実装（デフォルト：`providers/tts/voicevox.ts`、VOICEVOX）にTTS呼び出し部分を委譲する。VOICEVOXが使えない場合は同じインターフェースを満たす別プロバイダファイル（例：Google Cloud TTS）を追加すれば`tts.ts`側は変更不要
-- チャプターごとにTTS APIへ投げ、2話者分の音声を生成・結合
-- 早口すぎない速度に調整（デモでの聞き取りやすさ重視）
-
-## ⑦ 保存（Firestore / Storage）
-### Firestoreデータモデル（案）
-```
-users/{userId}
-  tags: string[]              // 選択したテーマタグ
-
-programs/{programId}
-  userId: string
-  createdAt: timestamp
-  chapters: [
-    {
-      title: string
-      sourceUrl: string
-      sourceName: string
-      script: string
-      audioUrl: string        // Storageへの参照
-      importanceScore: number
-    }
-  ]
-```
-### Storage
-- 音声ファイル（チャプターごと、またはプログラム単位で結合済み1本）
+- [①② 収集・正規化](docs/pipeline/01-fetch.md)
+- [③ 重複除去](docs/pipeline/02-dedupe.md)
+- [④ 重要度判定](docs/pipeline/03-score.md)
+- [⑤ 要約・台本化](docs/pipeline/04-script.md)
+- [⑥ 音声化](docs/pipeline/05-tts.md)
+- [⑦ 保存](docs/pipeline/06-storage.md)
 
 ## デモ用の軽量パイプライン
 - 記事数を3件程度に絞った縮小版を別スクリプト（`/scripts`）として用意
