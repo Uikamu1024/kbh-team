@@ -61,3 +61,17 @@ body {
 * {
   box-sizing: border-box;
 }
+
+.eq-bar {
+  animation: eq 0.9s ease-in-out infinite;
+  border-radius: 1px;
+}
+@keyframes eq {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}

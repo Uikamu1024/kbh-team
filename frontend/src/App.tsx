@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import RootGate from "@/pages/RootGate";
 import Onboarding from "@/pages/Onboarding";
 import Home from "@/pages/Home";
+import Player from "@/pages/Player";
 
 export default function App() {
   return (
@@ -11,6 +12,7 @@ export default function App() {
       <Route path="/onboarding" element={<Onboarding />} />
       <Route element={<AppShell />}>
         <Route path="/home" element={<Home />} />
+        <Route path="/player" element={<Player />} />
       </Route>
     </Routes>
   );
