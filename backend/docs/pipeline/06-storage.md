@@ -42,4 +42,4 @@ CREATE TABLE chapters (
 - 前のステップ：[⑥音声化](./05-tts.md)
 - `chapters.source_url` / `chapters.audio_path`は[プレイヤー](../../../frontend/docs/features/player.md)がバックエンドAPI経由で取得して使用
 - `users.tags`は[オンボーディング](../../../frontend/docs/features/onboarding.md)がバックエンドAPI経由で書き込む
-- APIの形状は[docs/api-contract.md](../../../docs/api-contract.md)を参照
+- APIの形状は[docs/api-contract.yaml](../../../docs/api-contract.yaml)を参照

@@ -3,10 +3,10 @@
 2.5日のハッカソンでの並行開発の進め方をまとめる。フロントエンド・バックエンドが別サービスとして分離されているため、この進め方自体は両チーム共通。
 
 ## 全体の流れ
-1. **APIコントラクトを決める**：[docs/api-contract.md](docs/api-contract.md)にエンドポイントとJSON形状を先に合意する。ここが決まらないとフロントとバックエンドが並行して進められないため最優先
+1. **APIコントラクトを決める**：[docs/api-contract.yaml](docs/api-contract.yaml)にエンドポイントとJSON形状を先に合意する。ここが決まらないとフロントとバックエンドが並行して進められないため最優先
 2. **並行開発**：
-   - フロントエンド：[docs/api-contract.md](docs/api-contract.md)のJSON形状に沿ったモックデータを使ってUIを作る（バックエンドの完成を待たない）。詳細は[frontend/CLAUDE.md](frontend/CLAUDE.md)参照
-   - バックエンド：[backend/docs/pipeline](backend/docs/pipeline)の各ステップを実装し、[docs/api-contract.md](docs/api-contract.md)を満たすAPIを生やす。詳細は[backend/CLAUDE.md](backend/CLAUDE.md)参照
+   - フロントエンド：[docs/api-contract.yaml](docs/api-contract.yaml)のJSON形状に沿ったモックデータを使ってUIを作る（バックエンドの完成を待たない）。詳細は[frontend/CLAUDE.md](frontend/CLAUDE.md)参照
+   - バックエンド：[backend/docs/pipeline](backend/docs/pipeline)の各ステップを実装し、[docs/api-contract.yaml](docs/api-contract.yaml)を満たすAPIを生やす。詳細は[backend/CLAUDE.md](backend/CLAUDE.md)参照
 3. **結合**：フロントエンドのモック呼び出しを実APIに差し替える。結合は早めに・小さく行い、最終日にまとめてやらない
 4. **磨き込み・デモ準備**：重要度判定の精度、会話形式TTSの間合い、デモ用軽量パイプラインの動作確認など
 

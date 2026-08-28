@@ -10,7 +10,7 @@
 - ディレクトリ構成：[Directory structure.md](Directory%20structure.md)
 - 技術選定理由（全体方針）：[Tech stack rationale.md](Tech%20stack%20rationale.md)
 - チーム開発の進め方（ブランチ運用・役割分担）：[Team workflow.md](Team%20workflow.md)
-- フロントエンド⇔バックエンドのAPIコントラクト：[docs/api-contract.md](docs/api-contract.md)
+- フロントエンド⇔バックエンドのAPIコントラクト：[docs/api-contract.yaml](docs/api-contract.yaml)
 - 環境変数：フロントエンドは[frontend/CLAUDE.md](frontend/CLAUDE.md#環境変数)、バックエンドは[backend/.env.example](backend/.env.example)
 
 ## プロジェクト概要
@@ -34,7 +34,7 @@
 
 ## 開発方針・優先順位
 1. **保守性を優先**：記事取得・LLM・TTSは`/backend/internal/providers`配下にプロバイダ単位でファイル分割し、共通インターフェース（`types.go`）経由で`/backend/internal/pipeline`から呼び出す。TTSやLLMのプロバイダ（VOICEVOXやGeminiなど）を途中で変える可能性があるため、実装差し替え時に他のコードへ影響が及ばないようにする（詳細：[backend/CLAUDE.md](backend/CLAUDE.md#プロバイダ層の設計原則)）
-2. **フロントエンド／バックエンドは疎結合に**：フロントエンドはバックエンドのHTTP APIのみを叩く。[docs/api-contract.md](docs/api-contract.md)でAPIのレスポンス形式（JSON）を先に決めてから両方の実装に着手する（進め方の詳細は[Team workflow.md](Team%20workflow.md)参照）
+2. **フロントエンド／バックエンドは疎結合に**：フロントエンドはバックエンドのHTTP APIのみを叩く。[docs/api-contract.yaml](docs/api-contract.yaml)でAPIのレスポンス形式（JSON）を先に決めてから両方の実装に着手する（進め方の詳細は[Team workflow.md](Team%20workflow.md)参照）
 3. フェーズ分けで進める：
    - Phase 1：Goで1テーマ収集→要約→TTSの一気通貫パイプラインを通す（モックデータでもいい、CLIでも可）
    - Phase 2：PostgreSQL/ローカルストレージ連携、バックエンドAPI化、複数テーマ対応
@@ -45,5 +45,5 @@
 ## 現時点の未決定事項（着手前に確認）
 プロダクト全体に関わるものをここに置く。各サービス固有の未決定事項は該当するCLAUDE.mdに記載している（[backend/CLAUDE.md](backend/CLAUDE.md#未決定事項)）。
 
-- `docs/api-contract.md`のエラーレスポンス形式、`userId`の識別方法（ログイン機能はスコープ外のため暫定対応が必要。フロントエンド・バックエンド双方の合意が必要）
+- `docs/api-contract.yaml`のエラーレスポンス形式、`userId`の識別方法（ログイン機能はスコープ外のため暫定対応が必要。フロントエンド・バックエンド双方の合意が必要）
 - 審査員に共有する「デモURL」をどうするか（README.mdに項目があるが、完全ローカル構成だと公開URLがない。発表者のPCでライブ実演のみにするか、デモ時だけ一時的に公開するか）

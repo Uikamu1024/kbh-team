@@ -42,7 +42,7 @@ Go製のAPIサーバー兼パイプライン実行基盤。フロントエンド
         voicevox.go     VOICEVOX実装（デフォルト、ローカルのVOICEVOX ENGINEを呼ぶ）
     /db               PostgreSQLクライアント（データモデルは[06-storage.md](docs/pipeline/06-storage.md)参照）
     /storage          音声ファイルの読み書き（ローカルファイルシステム、`/backend/data/audio`配下）
-    /api              HTTPハンドラ（フロントエンドが呼ぶAPIエンドポイント、バッチ起動用エンドポイントを含む。仕様は[docs/api-contract.md](../docs/api-contract.md)）
+    /api              HTTPハンドラ（フロントエンドが呼ぶAPIエンドポイント、バッチ起動用エンドポイントを含む。仕様は[docs/api-contract.yaml](../docs/api-contract.yaml)）
   /data
     /audio            生成した音声ファイルの保存先（gitignore対象）
   /docs
@@ -72,12 +72,12 @@ Go製のAPIサーバー兼パイプライン実行基盤。フロントエンド
 ### デモ用の軽量パイプライン
 - 記事数を3件程度に絞った縮小版を別エントリポイント（`/backend/cmd/demo`）として用意
 - その場でテーマを変更→数十秒〜1分で番組完成、を審査員の前でライブ実演する用途
-- APIとしては[`POST /api/demo/generate`](../docs/api-contract.md#post-apidemogenerate)で呼び出す
+- APIとしては`POST /api/demo/generate`（[docs/api-contract.yaml](../docs/api-contract.yaml)参照）で呼び出す
 
 ## バッチ実行
 - 生成バッチは固定時刻（毎朝6:00想定）で実行する設計とする
 - ローカルでのスクリプト実行 or cronを想定（Cloud Schedulerは使わない。クラウドにデプロイしないため）
-- APIとしては[`POST /api/batch/run`](../docs/api-contract.md#post-apibatchrun)から起動できるようにし、全ユーザー分の番組を生成する
+- APIとしては`POST /api/batch/run`（[docs/api-contract.yaml](../docs/api-contract.yaml)参照）から起動できるようにし、全ユーザー分の番組を生成する
 - 自動化方法の最終決定は[未決定事項](#未決定事項)を参照
 
 ## 技術選定理由
@@ -108,7 +108,7 @@ Go製のAPIサーバー兼パイプライン実行基盤。フロントエンド
 | `VOICEVOX_ENGINE_URL` | ローカルVOICEVOX ENGINEのURL（`docker-compose.yml`参照） |
 
 ## APIコントラクト
-フロントエンドが呼ぶエンドポイントの仕様は[docs/api-contract.md](../docs/api-contract.md)に合意事項としてまとめている。**実装より先にこのファイルを更新して合意すること。**
+フロントエンドが呼ぶエンドポイントの仕様は[docs/api-contract.yaml](../docs/api-contract.yaml)に合意事項としてまとめている。**実装より先にこのファイルを更新して合意すること。**
 
 ## 実装上の注意点
 - API制限を考慮：News API/RSS/LLM/TTSはいずれも呼び出し回数・レイテンシに制約がある。デモ本番用の音声は事前生成し、ライブデモ用には記事数を絞った軽量版パイプラインを別途用意する
@@ -117,5 +117,5 @@ Go製のAPIサーバー兼パイプライン実行基盤。フロントエンド
 ## 未決定事項
 - ホワイトリスト対象サイトの最終リスト
 - Webフレームワーク（標準`net/http`のみで足りるか、chi等の軽量ルーターを使うか）
-- `docs/api-contract.md`のエラーレスポンス形式、`userId`の識別方法（ログイン機能はスコープ外のため暫定対応が必要）
+- `docs/api-contract.yaml`のエラーレスポンス形式、`userId`の識別方法（ログイン機能はスコープ外のため暫定対応が必要）
 - 毎朝6:00のバッチ実行をローカルでどう自動化するか（cron／手動実行でよいか）

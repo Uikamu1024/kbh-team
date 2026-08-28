@@ -1,0 +1,537 @@
+openapi: 3.0.3
+info:
+  title: 通学AIラジオ API
+  version: "0.1.0"
+  description: |
+    フロントエンド（Next.js）とバックエンド（Go）を並行開発するための取り決め。
+    **実装より先にこのファイルを更新して合意すること。** 変更したら両チームに共有する。
+
+    - データモデルは [06-storage.md](../backend/docs/pipeline/06-storage.md) の PostgreSQL スキーマに対応する
+    - 認証は行わない（ログイン機能はスコープ外。`userId` の発行方法は下記「userId の扱い」参照）。
+      ローカル完結・オフライン前提の構成であり、本番公開は想定していないための割り切り
+
+    ## CORS
+    フロントエンド（`http://localhost:3000` 想定）とバックエンド（`http://localhost:8080` 想定）は
+    オリジンが異なるため、バックエンドは以下の CORS レスポンスヘッダを返すこと。
+    実装時に抜けやすく、抜けると疎通確認の最初の一歩で詰まるので明記しておく。
+
+    ```
+    Access-Control-Allow-Origin: http://localhost:3000
+    Access-Control-Allow-Methods: GET, POST, PUT, OPTIONS
+    Access-Control-Allow-Headers: Content-Type
+    ```
+
+    ## userId の扱い
+    ログイン機能はスコープ外のため、次の方式で暫定的にユーザーを識別する。
+
+    1. フロントエンドは初回起動時に `POST /api/users` を呼び、サーバーが発行した `userId`（UUID）を受け取る
+    2. `userId` をブラウザの `localStorage` に保存し、以降の全リクエストで使い回す
+    3. サーバーはリクエストされた `userId` が `users` テーブルに存在するかを検証し、
+       存在しなければ `404`（`USER_NOT_FOUND`）を返す
+
+    クライアントが自前で UUID を生成しない理由：`programs.user_id` が外部キー制約付きのため、
+    存在しないIDでの書き込みを防ぐにはサーバー発行が確実。
+
+servers:
+  - url: http://localhost:8080
+    description: ローカル開発環境（NEXT_PUBLIC_API_BASE_URL、詳細は frontend/CLAUDE.md#環境変数）
+
+tags:
+  - name: users
+    description: ユーザー識別・テーマタグ（オンボーディング）
+  - name: programs
+    description: 番組の取得（ホーム・プレイヤー）
+  - name: audio
+    description: 音声ファイルの配信
+  - name: demo
+    description: ライブデモ用の軽量パイプライン
+  - name: batch
+    description: 毎朝のバッチ生成
+  - name: health
+    description: ヘルスチェック
+
+paths:
+  /api/users:
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: 匿名ユーザーを作成する
+      description: |
+        匿名ユーザーを1件作成し、`userId` を発行する（アプリ初回起動時に呼ぶ）。
+      responses:
+        "201":
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateUserResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/users/{userId}/tags:
+    put:
+      operationId: putUserTags
+      tags: [users]
+      summary: テーマタグを保存する（オンボーディング）
+      description: |
+        テーマタグを保存する（[オンボーディング](../frontend/docs/features/onboarding.md)）。
+        全件を置き換える冪等な操作のため `PUT` とする（追加ではなく上書き）。
+        プリセットタグ一覧との照合は現状バックエンド側では行わない（未決定事項参照）。
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagsRequest"
+            example:
+              tags: ["AI", "京都"]
+      responses:
+        "204":
+          description: 保存成功（本文なし）
+        "400":
+          description: "`tags` が空、4件以上、または要素が空文字列"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: INVALID_TAGS
+                  message: "tagsは1〜3件で指定してください"
+        "404":
+          description: "`userId` が存在しない"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: USER_NOT_FOUND
+                  message: "指定されたユーザーが見つかりません"
+
+  /api/users/{userId}/programs/latest:
+    get:
+      operationId: getLatestProgram
+      tags: [programs]
+      summary: 最新の番組を取得する（ホーム）
+      description: |
+        その日（最新）の番組を取得する（[ホーム](../frontend/docs/features/home.md)）。
+        バッチ処理（`POST /api/batch/run`）が生成した、その `userId` にとって
+        最も新しい番組を返す。
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "404":
+          description: "userId が存在しない、または番組がまだ1件も生成されていない"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                userNotFound:
+                  summary: userId が存在しない
+                  value:
+                    error:
+                      code: USER_NOT_FOUND
+                      message: "指定されたユーザーが見つかりません"
+                programNotFound:
+                  summary: 番組が未生成（ホーム画面は「準備中」表示の分岐に使う）
+                  value:
+                    error:
+                      code: PROGRAM_NOT_FOUND
+                      message: "指定されたユーザーの番組がまだ生成されていません"
+
+  /api/programs/{programId}:
+    get:
+      operationId: getProgram
+      tags: [programs]
+      summary: 指定した番組の詳細を取得する（プレイヤー）
+      description: |
+        指定した番組の詳細を取得する（[プレイヤー](../frontend/docs/features/player.md)）。
+        レスポンス形式は `GET /api/users/{userId}/programs/latest` と同じ
+        （`userId` に紐付かない直接アクセス用。ホームからプレイヤーへ遷移する際に番組IDで参照する）。
+      parameters:
+        - $ref: "#/components/parameters/ProgramId"
+      responses:
+        "200":
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "404":
+          description: 番組が存在しない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: PROGRAM_NOT_FOUND
+                  message: "指定された番組が見つかりません"
+
+  /api/audio/{programId}/{chapterId}:
+    get:
+      operationId: getAudio
+      tags: [audio]
+      summary: 音声ファイルを配信する
+      description: |
+        実体は [⑦保存](../backend/docs/pipeline/06-storage.md) のローカルファイルシステムから読む。
+
+        - VOICEVOXの出力がネイティブでWAVのため、フォーマット変換（MP3エンコード等）は
+          MVPでは行わずWAVのまま配信する。ファイル容量は大きくなるが、追加の依存
+          （ffmpeg等）を増やさずに済むトレードオフを取る
+        - `Range` リクエストヘッダに対応する（`206 Partial Content`）。HTML5 `<audio>` の
+          シーク操作が `Range` リクエストを送るため、これがないとシークバー操作で
+          毎回頭出しになる
+      parameters:
+        - $ref: "#/components/parameters/ProgramId"
+        - $ref: "#/components/parameters/ChapterId"
+        - name: Range
+          in: header
+          required: false
+          schema:
+            type: string
+          example: "bytes=0-"
+      responses:
+        "200":
+          description: 音声ファイル本体
+          content:
+            audio/wav:
+              schema:
+                type: string
+                format: binary
+        "206":
+          description: "部分レスポンス（`Range`ヘッダ指定時）"
+          content:
+            audio/wav:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: "`chapters`テーブルに該当行はあるがファイルが物理的に存在しない場合を含む"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: AUDIO_NOT_FOUND
+                  message: "音声ファイルが見つかりません"
+
+  /api/demo/generate:
+    post:
+      operationId: generateDemoProgram
+      tags: [demo]
+      summary: デモ用の軽量パイプラインをその場で実行する
+      description: |
+        デモ用の軽量パイプラインをその場で実行する（記事数を絞った縮小版。
+        [backend/CLAUDE.md](../backend/CLAUDE.md#デモ用の軽量パイプライン)参照）。
+
+        **この呼び出しはDBに保存しない。** `programs`/`chapters`テーブルへの書き込みは行わず、
+        生成した結果をレスポンスとしてその場で返すだけの一発実行。理由：`programs.user_id`は
+        必須の外部キーだが、このエンドポイントは`userId`を受け取らない想定のライブデモ用途のため、
+        永続化の対象外として設計をシンプルに保つ。
+
+        レスポンスの `id` は、レスポンスを跨いで再利用できない一時的な値
+        （`demo-` プレフィックス付きなど）を返す。音声ファイル自体は `AUDIO_STORAGE_PATH` 配下に
+        一時保存し、`audioUrl` 経由で配信する（保存期間・掃除タイミングは未決定事項）。
+
+        **同期実行・低いタイムアウト前提の注意**：記事取得→LLM→TTSを直列に呼ぶため、
+        レスポンスまで数十秒〜1分程度かかる。フロントエンドはこの間ローディング状態を表示し、
+        `fetch`のタイムアウトは余裕を持って60秒以上に設定すること。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DemoGenerateRequest"
+            example:
+              tags: ["AI"]
+      responses:
+        "200":
+          description: 生成成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "400":
+          description: "`tags`が空"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: INVALID_TAGS
+                  message: "tagsは1件以上指定してください"
+        "502":
+          description: 外部プロバイダの呼び出し失敗
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                fetchFailed:
+                  summary: 記事取得（jina.ai／firecrawl）が両方とも失敗
+                  value:
+                    error:
+                      code: UPSTREAM_FETCH_FAILED
+                      message: "記事の取得に失敗しました"
+                llmFailed:
+                  summary: Gemini API呼び出し失敗・レート制限
+                  value:
+                    error:
+                      code: UPSTREAM_LLM_FAILED
+                      message: "台本生成に失敗しました"
+                ttsFailed:
+                  summary: VOICEVOX ENGINEへの接続失敗
+                  value:
+                    error:
+                      code: UPSTREAM_TTS_FAILED
+                      message: "音声生成に失敗しました"
+
+  /api/batch/run:
+    post:
+      operationId: runBatch
+      tags: [batch]
+      summary: 毎朝のバッチ処理を起動する
+      description: |
+        毎朝6:00相当のバッチ処理をローカルのcron/手動実行から叩くためのエンドポイント
+        （[backend/CLAUDE.md](../backend/CLAUDE.md#バッチ実行)参照）。全ユーザー分の番組を生成し、
+        `programs`/`chapters`に保存する（`POST /api/demo/generate`とは異なり、こちらは永続化する）。
+
+        **進捗確認手段はMVPでは提供しない**：`202`を返した後、各ユーザーの生成完了は個別に
+        `GET /api/users/{userId}/programs/latest`をポーリングして`createdAt`の更新を見るしかない。
+        バッチ全体の完了通知や失敗ユーザーの一覧化は行わない（ハッカソン規模ではオーバースペックと判断）。
+
+        **想定される呼び出し元はローカルのcron／開発者本人のみ**：認証を行わないため、
+        外部に公開しない前提（CORSの許可オリジンにも含めない）。
+      responses:
+        "202":
+          description: 受理成功（非同期実行のため、このレスポンスは受理のみを示す）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchRunResponse"
+
+  /api/health:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: ヘルスチェック
+      description: |
+        `docker compose up`後、Postgres・VOICEVOX ENGINEへの接続確認も含めたヘルスチェック。
+        フロントエンド起動前の疎通確認や、開発時の動作確認に使う。
+      responses:
+        "200":
+          description: 全て正常
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: ok
+                postgres: ok
+                voicevox: ok
+        "503":
+          description: いずれかに接続できない（該当箇所を"error"にして返す）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: error
+                postgres: ok
+                voicevox: error
+
+components:
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProgramId:
+      name: programId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ChapterId:
+      name: chapterId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    InternalError:
+      description: サーバー内部エラー
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: INTERNAL_ERROR
+              message: "サーバー内部でエラーが発生しました"
+
+  schemas:
+    CreateUserResponse:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+
+    TagsRequest:
+      type: object
+      required: [tags]
+      properties:
+        tags:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items:
+            type: string
+          description: 1〜3件の文字列配列
+
+    DemoGenerateRequest:
+      type: object
+      required: [tags]
+      properties:
+        tags:
+          type: array
+          minItems: 1
+          items:
+            type: string
+
+    BatchRunResponse:
+      type: object
+      required: [acceptedAt]
+      properties:
+        acceptedAt:
+          type: string
+          format: date-time
+          example: "2026-08-29T06:00:00+09:00"
+
+    HealthResponse:
+      type: object
+      required: [status, postgres, voicevox]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        postgres:
+          type: string
+          enum: [ok, error]
+        voicevox:
+          type: string
+          enum: [ok, error]
+
+    Program:
+      type: object
+      required: [id, createdAt, totalDurationSec, chapters]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 8f14e45f-ceea-4c9e-8b52-1c4d5d5f6a12
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-08-29T06:00:00+09:00"
+        totalDurationSec:
+          type: integer
+          description: 番組合計の再生時間（秒）
+          example: 420
+        chapters:
+          type: array
+          items:
+            $ref: "#/components/schemas/Chapter"
+
+    Chapter:
+      type: object
+      required:
+        - id
+        - position
+        - title
+        - sourceUrl
+        - sourceName
+        - audioUrl
+        - durationSec
+        - importanceScore
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: c56a4180-65aa-42ec-a945-5fd21dec0538
+        position:
+          type: integer
+          description: 番組内の並び順
+          example: 0
+        title:
+          type: string
+          example: "〇〇について"
+        sourceUrl:
+          type: string
+          format: uri
+          example: https://example.com/article
+        sourceName:
+          type: string
+          example: Example News
+        audioUrl:
+          type: string
+          example: /api/audio/8f14e45f-ceea-4c9e-8b52-1c4d5d5f6a12/c56a4180-65aa-42ec-a945-5fd21dec0538
+        durationSec:
+          type: integer
+          description: |
+            チャプター単体の再生時間（秒）。プレイヤーのシークバー初期表示に使う
+            （`<audio>`のメタデータ読み込み完了を待たずに表示できるようにするため）
+          example: 95
+        importanceScore:
+          type: integer
+          example: 5
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: "`SCREAMING_SNAKE_CASE`の固定文字列"
+              enum:
+                - USER_NOT_FOUND
+                - INVALID_TAGS
+                - PROGRAM_NOT_FOUND
+                - AUDIO_NOT_FOUND
+                - UPSTREAM_FETCH_FAILED
+                - UPSTREAM_LLM_FAILED
+                - UPSTREAM_TTS_FAILED
+                - INTERNAL_ERROR
+            message:
+              type: string
+
+x-open-questions:
+  - "プリセットタグ一覧の管理場所（フロントエンドのハードコード／バックエンドでマスタ管理）と、`PUT /api/users/{userId}/tags`でのバリデーション有無"
+  - "`POST /api/demo/generate`が一時保存する音声ファイルの掃除タイミング（TTL／起動時クリーンアップ等）"
+  - "`POST /api/batch/run`の同時実行防止（多重起動をどう防ぐか。ロックファイル／DBフラグ等）"

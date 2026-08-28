@@ -39,7 +39,7 @@ Next.js（App Router）製のPWA。UIのみを担当し、データアクセス�
 デザイン方針の詳細は[docs/design.md](docs/design.md)を参照。
 
 ## APIコントラクト
-バックエンドAPIのエンドポイント・レスポンス形式は[docs/api-contract.md](../docs/api-contract.md)に合意事項としてまとめている。**実装より先にこのファイルを更新して合意すること。** 並行開発中は、このJSON形状に沿ったモックデータでUIを作り、バックエンドの完成を待たない（詳細は[Team workflow.md](../Team%20workflow.md)参照）。
+バックエンドAPIのエンドポイント・レスポンス形式は[docs/api-contract.yaml](../docs/api-contract.yaml)に合意事項としてまとめている。**実装より先にこのファイルを更新して合意すること。** 並行開発中は、このJSON形状に沿ったモックデータでUIを作り、バックエンドの完成を待たない（詳細は[Team workflow.md](../Team%20workflow.md)参照）。
 
 ## 実装上の注意点
 - **自動再生制限**：ブラウザはユーザー操作なしの音声自動再生をブロックする。ホーム画面アイコンのタップ→即座に再生開始、という1タップ導線で実現すること（完全な自動再生は不可能な前提で設計する。詳細は[docs/features/home.md](docs/features/home.md)参照）

@@ -12,7 +12,7 @@
 ```
 /docker-compose.yml  PostgreSQL・VOICEVOX ENGINEをローカル起動する定義
 /docs
-  api-contract.md    フロントエンド⇔バックエンドのAPIコントラクト（共通）
+  api-contract.yaml    フロントエンド⇔バックエンドのAPIコントラクト（共通）
 /frontend            Next.js App Router（PWA対応、UIのみ）。詳細は frontend/CLAUDE.md
   /app
   /public
