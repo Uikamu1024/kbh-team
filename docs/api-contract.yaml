@@ -3,7 +3,7 @@ info:
   title: 通学AIラジオ API
   version: "0.1.0"
   description: |
-    フロントエンド（Next.js）とバックエンド（Go）を並行開発するための取り決め。
+    フロントエンド（React + Vite）とバックエンド（Go）を並行開発するための取り決め。
     **実装より先にこのファイルを更新して合意すること。** 変更したら両チームに共有する。
 
     - データモデルは [06-storage.md](../backend/docs/pipeline/06-storage.md) の PostgreSQL スキーマに対応する
@@ -40,7 +40,7 @@ info:
 
 servers:
   - url: http://localhost:8080
-    description: ローカル開発環境（NEXT_PUBLIC_API_BASE_URL、詳細は frontend/CLAUDE.md#環境変数）
+    description: ローカル開発環境（VITE_API_BASE_URL、詳細は frontend/CLAUDE.md#環境変数）
 
 tags:
   - name: users

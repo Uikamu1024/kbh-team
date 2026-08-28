@@ -2,7 +2,7 @@
 
 このファイルはClaude Codeがこのリポジトリで作業する際に最初に読み込む前提知識。フロントエンド・バックエンドどちらにも関わる共通事項のみをここに置き、各サービス固有の詳細はそれぞれのCLAUDE.mdに分割している。
 
-- **フロントエンド固有**：[frontend/CLAUDE.md](frontend/CLAUDE.md)（Next.js、PWA、デザイン、画面仕様）
+- **フロントエンド固有**：[frontend/CLAUDE.md](frontend/CLAUDE.md)（React + Vite、PWA、デザイン、画面仕様）
 - **バックエンド固有**：[backend/CLAUDE.md](backend/CLAUDE.md)（Go、パイプライン、プロバイダ層、DB）
 
 その他の共通ドキュメント：
@@ -21,7 +21,7 @@
 
 | 領域 | 技術 | 詳細 |
 | --- | --- | --- |
-| フロントエンド | Next.js（App Router）、PWA対応 | [frontend/CLAUDE.md](frontend/CLAUDE.md) |
+| フロントエンド | React + Vite、PWA対応 | [frontend/CLAUDE.md](frontend/CLAUDE.md) |
 | バックエンド | Go（標準`net/http`） | [backend/CLAUDE.md](backend/CLAUDE.md) |
 | データベース | PostgreSQL（Dockerでローカル起動） | [backend/CLAUDE.md](backend/CLAUDE.md) |
 | ファイルストレージ | ローカルファイルシステム | [backend/CLAUDE.md](backend/CLAUDE.md) |

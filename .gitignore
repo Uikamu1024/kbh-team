@@ -7,7 +7,7 @@
 
 # フロントエンド
 /frontend/node_modules/
-/frontend/.next/
+/frontend/dist/
 
 # OS
 .DS_Store

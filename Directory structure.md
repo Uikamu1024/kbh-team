@@ -2,7 +2,7 @@
 
 開発が進むにつれて階層が変わる可能性が高いため、`CLAUDE.md`とは別ファイルで管理する。変更した場合はこのファイルを更新すること。
 
-フロントエンド（Next.js）とバックエンド（Go）は別サービスとして分離し、同一リポジトリ内で`/frontend`と`/backend`に分ける（モノレポ）。フロントエンドはバックエンドのHTTP APIのみを叩く。クラウドへのデプロイは行わず、`docker-compose.yml`（ルート直下）でPostgreSQLとVOICEVOX ENGINEをローカル起動する。
+フロントエンド（React + Vite）とバックエンド（Go）は別サービスとして分離し、同一リポジトリ内で`/frontend`と`/backend`に分ける（モノレポ）。フロントエンドはバックエンドのHTTP APIのみを叩く。クラウドへのデプロイは行わず、`docker-compose.yml`（ルート直下）でPostgreSQLとVOICEVOX ENGINEをローカル起動する。
 
 各サービスの詳細なディレクトリ構成・実装方針は、それぞれの`CLAUDE.md`で管理する：
 - フロントエンド：[frontend/CLAUDE.md](frontend/CLAUDE.md)
@@ -13,8 +13,8 @@
 /docker-compose.yml  PostgreSQL・VOICEVOX ENGINEをローカル起動する定義
 /docs
   api-contract.yaml    フロントエンド⇔バックエンドのAPIコントラクト（共通）
-/frontend            Next.js App Router（PWA対応、UIのみ）。詳細は frontend/CLAUDE.md
-  /app
+/frontend            React + Vite（PWA対応、UIのみ）。詳細は frontend/CLAUDE.md
+  /src
   /public
   /docs
     design.md
