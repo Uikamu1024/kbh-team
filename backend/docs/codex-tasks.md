@@ -86,3 +86,34 @@ Phase 1（パイプライン一気通貫）の範囲では**Go標準ライブラ
 - `backend/`配下以外のファイルを変更しない
 - 新規の外部リポジトリのclone・不要なパッケージのインストールをしない
 - `go.mod`への新規`require`追加は事前に理由を報告してから
+- `backend/CLAUDE.md`・`backend/docs/**`は明示的に依頼されない限り編集しない
+
+## Phase 2以降の作業ステップ
+
+Phase 1（パイプライン一気通貫、CLI）は完了済み。以降はPhase 2〜5を実装する。
+`backend/CLAUDE.md`の[決定事項（旧・未決定事項）](../CLAUDE.md#決定事項旧未決定事項)の通り、
+Webフレームワークは標準`http.ServeMux`（Go 1.22+のパスパターン機能）を使う。
+
+### Phase 2：永続化（DB・ストレージ）
+8. **Step 8**：`backend/internal/db`パッケージ
+   - PostgreSQLドライバは`github.com/jackc/pgx/v5`（`database/sql`は使わずpgxネイティブAPIでよい）を`go.mod`に追加する
+   - [06-storage.md](pipeline/06-storage.md)のスキーマ通りに`users`/`programs`/`chapters`テーブルを作るマイグレーションSQL（`backend/internal/db/migrations/0001_init.sql`等）
+   - `DB`構造体（`*pgxpool.Pool`をラップ）とCRUD関数群：`CreateUser`, `GetUser`, `UpdateUserTags`, `UpdateUserSettings`, `CreateProgram`（chaptersも同時挿入）, `GetLatestProgramByUser`, `ListProgramsByUser`, `GetProgramByID`, `IncrementResetCount`（[api-handlers.md](api-handlers.md)のreset_count/reset_dateロジック）
+   - マイグレーション適用方法：起動時に`internal/db`がマイグレーションSQLを自動実行する簡易な仕組みでよい（専用マイグレーションツールは導入しない）
+9. **Step 9**：`backend/internal/storage`パッケージ
+   - [06-storage.md](pipeline/06-storage.md#音声ファイルの保存先)通り、`{AUDIO_STORAGE_PATH}/{programId}/{chapterId}.wav`への書き込み・読み込み関数
+
+### Phase 3：API化
+10. **Step 10**：`backend/cmd/server/main.go` + `backend/internal/api`
+    - `docs/api-contract.yaml`の全エンドポイントを実装（[api-handlers.md](api-handlers.md)の委譲方針通り）
+    - CORSヘッダ（`docs/api-contract.yaml`冒頭のCORSセクション通り）
+    - `GET /api/health`（Postgres・VOICEVOX ENGINEへの疎通確認）
+
+### Phase 4：精度・自動化
+11. **Step 11**：`POST /api/batch/run`（[api-handlers.md](api-handlers.md#delivery_timeとバッチの関係)のポーリング型ロジック）
+12. **Step 12**：`backend/scripts/batch-cron.sh`（5分間隔でcurlを叩くcron用スクリプト。実際のcrontab登録は行わない、スクリプトと設定コメントのみ）
+
+### Phase 5：プロフィール周り
+13. **Step 13**：`POST /api/users/{userId}/programs/latest/regenerate`（[api-handlers.md](api-handlers.md#regenerateの多重リクエスト防止)のプロセス内メモリ排他制御＋1日3回制限）
+
+各Stepの完了ごとに監督側（Claude）が実際にローカルPostgreSQLに接続してビルド・簡易実行で動作確認する。

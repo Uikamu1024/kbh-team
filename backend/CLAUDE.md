@@ -6,7 +6,7 @@
 Go製のAPIサーバー兼パイプライン実行基盤。フロントエンド（Next.js）はこのバックエンドのHTTP APIのみを叩き、DB・外部API・音声ファイルへは直接アクセスしない。
 
 ## 技術スタック
-- **言語／フレームワーク**：Go、標準`net/http`（ルーターは軽量ライブラリの採用可否も含め未決定。[未決定事項](#未決定事項)参照）
+- **言語／フレームワーク**：Go、標準`net/http`（Go 1.22以降の`http.ServeMux`はメソッド・パスパラメータ付きパターン（例：`"POST /api/users/{userId}/tags"`）に対応しているため、軽量ルーターの追加導入は不要と判断・決定した）
 - **データベース**：PostgreSQL（`docker-compose.yml`でローカル起動）
 - **ファイルストレージ**：ローカルファイルシステム（`/backend/data/audio`、gitignore対象）
 - **記事取得**：jina.ai Reader（第一候補）／firecrawl free tier（代替）
@@ -87,6 +87,8 @@ Phase 1〜3が通るまでPhase 5の機能（設定・履歴・作り直し）�
 - 記事取得元は最初からホワイトリスト化した数サイトに限定し、全サイト対応は行わない
 
 ## 未決定事項
-- ホワイトリスト対象サイトの最終リスト（[01-fetch.md](docs/pipeline/01-fetch.md)参照）
-- Webフレームワーク（標準`net/http`のみで足りるか、chi等の軽量ルーターを使うか）
-- `POST /api/batch/run`を叩くcronの実行間隔とローカルでの自動化方法（[docs/api-handlers.md](docs/api-handlers.md#delivery_timeとバッチの関係)参照）
+- ホワイトリスト対象サイトの最終リスト（[01-fetch.md](docs/pipeline/01-fetch.md)参照。現状は`internal/providers/fetcher`内に仮のダミーURLを置いている）
+
+## 決定事項（旧・未決定事項）
+- **Webフレームワーク**：標準`net/http`の`http.ServeMux`（Go 1.22+のパスパターン機能）のみで実装する。軽量ルーターは導入しない
+- **`POST /api/batch/run`を叩くcronの実行間隔とローカルでの自動化方法**：5分間隔。OS標準のcron（`crontab`）から`curl`で叩く方式とし、`backend/scripts/batch-cron.sh`と設定例を用意する（実際に開発者のcrontabへ登録するかは各自の判断）
