@@ -32,6 +32,15 @@
 
 各技術の選定理由は、全体方針に関わるものは[Tech stack rationale.md](Tech%20stack%20rationale.md)、個別のものは各サービスのCLAUDE.mdを参照。
 
+## Claude Codeセッションの分離運用
+フロントエンドとバックエンドをそれぞれ別のClaude Codeセッションで並行して動かせるようにする（[Team workflow.md](Team%20workflow.md)の並行開発方針に対応）。セッションが混線して互いのファイルを書き換えたり、余計な文脈を読み込んで挙動がぶれたりしないよう、次のルールを厳守する。
+
+- **`/frontend`配下で作業しているセッションは`/backend`配下に触れない**：書き込みは禁止、読み取りも基本的に行わない。バックエンドの実装詳細（`internal/pipeline`の中身やDBスキーマの実装など）を必要としてはならない
+- **`/backend`配下で作業しているセッションは`/frontend`配下に触れない**：同様に書き込み禁止・読み取りも基本的に行わない
+- 両者が唯一共有してよいのは**[docs/api-contract.yaml](docs/api-contract.yaml)**（リポジトリ直下の`docs/`にあり、どちらのディレクトリ配下にも属さない）。フロントエンド・バックエンドどちらのセッションも、実装前に必ずこのファイルを読んで最新のAPI仕様と整合させること
+- 実装を進める中でAPI仕様に不足・矛盾が見つかった場合は、担当領域（`/frontend`または`/backend`）のコードではなく`docs/api-contract.yaml`を更新し、その変更内容をユーザーに明示する（もう片方のセッション・担当者が気づけるように）。エンドポイントやスキーマを片側の都合だけで解釈して実装を進めない
+- [Requirements.md](Requirements.md)・[Team workflow.md](Team%20workflow.md)・[Directory structure.md](Directory%20structure.md)・[Tech stack rationale.md](Tech%20stack%20rationale.md)・このファイル自体など、リポジトリ直下の共通ドキュメントは両セッションとも読んでよいが、担当外の領域に関する記述を勝手に書き換えない
+
 ## 開発方針・優先順位
 1. **保守性を優先**：記事取得・LLM・TTSは`/backend/internal/providers`配下にプロバイダ単位でファイル分割し、共通インターフェース（`types.go`）経由で`/backend/internal/pipeline`から呼び出す。TTSやLLMのプロバイダ（VOICEVOXやGeminiなど）を途中で変える可能性があるため、実装差し替え時に他のコードへ影響が及ばないようにする（詳細：[backend/CLAUDE.md](backend/CLAUDE.md#プロバイダ層の設計原則)）
 2. **フロントエンド／バックエンドは疎結合に**：フロントエンドはバックエンドのHTTP APIのみを叩く。[docs/api-contract.yaml](docs/api-contract.yaml)でAPIのレスポンス形式（JSON）を先に決めてから両方の実装に着手する（進め方の詳細は[Team workflow.md](Team%20workflow.md)参照）
