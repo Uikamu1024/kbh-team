@@ -5,7 +5,8 @@
 - AIパイプラインの設計：`Pipeline design.md`
 - ディレクトリ構成：`Directory structure.md`
 - デザイン方針：`Design.md`
-- 環境変数：`.env.example`
+- 技術選定理由：`Tech stack rationale.md`
+- 環境変数：`frontend/.env.example` / `backend/.env.example`
 
 ## プロジェクト概要
 通学中に聞ける、テーマ登録型のパーソナルAIラジオPWA。関西ビギナーズハッカソン vol.8（2.5日開発）向けのプロトタイプ。
