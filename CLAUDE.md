@@ -11,7 +11,7 @@
 - 技術選定理由（全体方針）：[Tech stack rationale.md](Tech%20stack%20rationale.md)
 - チーム開発の進め方（ブランチ運用・役割分担）：[Team workflow.md](Team%20workflow.md)
 - フロントエンド⇔バックエンドのAPIコントラクト：[docs/api-contract.md](docs/api-contract.md)
-- 環境変数：[frontend/.env.example](frontend/.env.example) / [backend/.env.example](backend/.env.example)
+- 環境変数：フロントエンドは[frontend/CLAUDE.md](frontend/CLAUDE.md#環境変数)、バックエンドは[backend/.env.example](backend/.env.example)
 
 ## プロジェクト概要
 通学中に聞ける、テーマ登録型のパーソナルAIラジオPWA。関西ビギナーズハッカソン vol.8（2.5日開発）向けのプロトタイプ。詳細は[Requirements.md](Requirements.md)を参照。

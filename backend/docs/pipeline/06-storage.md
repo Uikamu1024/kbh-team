@@ -28,13 +28,15 @@ CREATE TABLE chapters (
   source_name TEXT NOT NULL,
   script TEXT NOT NULL,
   audio_path TEXT NOT NULL,           -- ローカルファイルシステム上のパス
+  duration_sec INT NOT NULL,          -- 音声の長さ（秒）。API応答のdurationSecに対応
   importance_score INT NOT NULL
 );
 ```
 
 ## 音声ファイルの保存先
-- `/backend/data/audio/{programId}/{chapterId}.mp3`（チャプターごと）のようにローカルファイルシステムへ保存
-- `chapters.audio_path`にファイルパスを保存し、バックエンドAPIが配信する（例：`GET /api/audio/{programId}/{chapterId}`）
+- `/backend/data/audio/{programId}/{chapterId}.wav`（チャプターごと）のようにローカルファイルシステムへ保存。VOICEVOXの出力がネイティブでWAVのため、MVPではMP3変換を行わずWAVのまま保存・配信する（フォーマット変換を挟まない分、追加の依存ライブラリが増えない）
+- `chapters.audio_path`にファイルパスを保存し、バックエンドAPIが配信する（例：`GET /api/audio/{programId}/{chapterId}`、`Content-Type: audio/wav`）
+- `duration_sec`はTTS生成時（[⑥音声化](./05-tts.md)）に音声の長さを計測して書き込む
 
 ## 関連
 - 前のステップ：[⑥音声化](./05-tts.md)
