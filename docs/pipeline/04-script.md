@@ -1,11 +1,11 @@
 # ⑤ 要約・台本化
-**対応ファイル**: `/lib/pipeline/script.ts`（プロバイダ実装は `/lib/providers/llm/`）
+**対応ファイル**: `/backend/internal/pipeline/script.go`（プロバイダ実装は `/backend/internal/providers/llm/`）
 
 ## 概要
 LLMに記事群を渡し、口語体のラジオ台本を生成する。
 
 ## 詳細
-- `/lib/providers/llm`配下のプロバイダ実装（デフォルト：`providers/llm/gemini.ts`、Gemini API）にLLM呼び出し部分を委譲する。プロバイダ変更時は`types.ts`のインターフェースを満たす新規ファイルを追加するのみで、`script.ts`側は変更不要
+- `/backend/internal/providers/llm`配下のプロバイダ実装（デフォルト：`providers/llm/gemini.go`、Gemini API）にLLM呼び出し部分を委譲する。プロバイダ変更時は`types.go`のインターフェースを満たす新規ファイルを追加するのみで、`script.go`側は変更不要
 - LLMに記事群を渡し、口語体のラジオ台本を生成
 - 2人の話者による会話形式を採用（単調さ対策）
 

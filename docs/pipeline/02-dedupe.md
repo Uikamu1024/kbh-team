@@ -1,5 +1,5 @@
 # ③ 重複除去
-**対応ファイル**: `/lib/pipeline/dedupe.ts`
+**対応ファイル**: `/backend/internal/pipeline/dedupe.go`
 
 ## 概要
 複数ソースで同じ話題が重複取得されるのを防ぎ、同一トピックを1本にまとめる。

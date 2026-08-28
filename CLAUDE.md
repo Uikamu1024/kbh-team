@@ -11,17 +11,19 @@
 通学中に聞ける、テーマ登録型のパーソナルAIラジオPWA。関西ビギナーズハッカソン vol.8（2.5日開発）向けのプロトタイプ。
 
 ## 技術スタック
-チーム開発かつハッカソンのため、**無償で完結する構成**を採用する。
-- フロントエンド：Next.js（App Router）、PWA対応
-- バックエンド：**Next.js API Routes（Route Handlers）**をそのままバックエンドとして使用。別サーバーは立てない
-  - 理由：Firebase Cloud Functionsは無料のSparkプランだと外部API（jina.ai/LLM/TTS）への通信ができずBlaze（従量課金）登録が必要になるため回避
-- ホスティング：**Vercel（Hobbyプラン・無料）**
+チーム開発かつハッカソンのため、**無償で完結する構成**を採用する。フロントエンドとバックエンドは別サービスとして分離する（学習目的でバックエンドにGoを使う）。
+- フロントエンド：Next.js（App Router）、PWA対応。UIのみを担当し、データアクセスは全てバックエンドAPI経由で行う（Firebaseへ直接アクセスしない）
+  - ホスティング：**Vercel（Hobbyプラン・無料）**
+- バックエンド：**Go**（標準`net/http`によるAPIサーバー）。パイプライン実行・Firestore/Storageアクセス・外部API呼び出しを担当
+  - ホスティング：**Cloud Run（GCP）**
+  - 理由：VOICEVOX ENGINEも同じくCloud Runにデプロイする想定のため、GCPアカウント・課金設定を1つにまとめられる。Cloud Runは無料枠が大きく、ハッカソン規模の利用なら実質無償で収まる見込み
+- バッチ実行：**Cloud Scheduler**が毎朝6:00にバックエンドのバッチ用エンドポイントを叩く
 - 記事取得：jina.ai Reader（第一候補）／firecrawl free tier（代替）
 - LLM：**Gemini API（Google AI Studio 無料枠）**
   - 理由：Claude APIには恒常的な無料枠がなくトライアルクレジットのみのため
 - TTS：**VOICEVOX**（無料・オープンソース、キャラクターごとに声が異なるため「2人会話形式」の要件に合致）
   - 開発時はDockerでローカル起動、デモ用はCloud Runの無料枠にVOICEVOX ENGINEをデプロイ想定（Phase 1で早めに動作確認する）
-- データ保存：Firebase（Firestore + Storage、Sparkプラン＝無料枠のままでOK。Functionsは使わないため）
+- データ保存：Firebase（Firestore + Storage、Sparkプラン＝無料枠のままでOK。バックエンド（Go）からFirebase Admin SDKでアクセスする）
 
 ## ディレクトリ構成
 `Directory structure.md` を参照。開発中に階層が変わりやすいため、CLAUDE.mdとは別ファイルで管理している。
@@ -30,13 +32,14 @@
 `Design.md` を参照。UI仕様が具体化するにつれて内容が増えるため、CLAUDE.mdとは別ファイルで管理している。
 
 ## 開発方針・優先順位
-1. **保守性を優先**：記事取得・LLM・TTSは`/lib/providers`配下にプロバイダ単位でファイル分割し、共通インターフェース（`types.ts`）経由で`/lib/pipeline`から呼び出す。TTSやLLMのプロバイダ（VOICEVOXやGeminiなど）を途中で変える可能性があるため、実装差し替え時に他のコードへ影響が及ばないようにする
-2. フェーズ分けで進める：
-   - Phase 1：1テーマで収集→要約→TTSの一気通貫パイプラインを通す（モックデータでもいい）
-   - Phase 2：Firestore/Storage連携、複数テーマ対応
-   - Phase 3：プレイヤーUI、1タップ起動対応
-   - Phase 4：重要度判定・会話形式TTSなどの磨き込み
-3. `Requirements.md` の「スコープ外」に書かれた機能は、明示的な指示がない限り実装しない
+1. **保守性を優先**：記事取得・LLM・TTSは`/backend/internal/providers`配下にプロバイダ単位でファイル分割し、共通インターフェース（`types.go`）経由で`/backend/internal/pipeline`から呼び出す。TTSやLLMのプロバイダ（VOICEVOXやGeminiなど）を途中で変える可能性があるため、実装差し替え時に他のコードへ影響が及ばないようにする
+2. **フロントエンド／バックエンドは疎結合に**：フロントエンドはバックエンドのHTTP APIのみを叩く。APIのレスポンス形式（JSON）を先に決めてから両方の実装に着手すると、チームで並行作業しやすい
+3. フェーズ分けで進める：
+   - Phase 1：Goで1テーマ収集→要約→TTSの一気通貫パイプラインを通す（モックデータでもいい、CLIでも可）
+   - Phase 2：Firestore/Storage連携、バックエンドAPI化、複数テーマ対応
+   - Phase 3：フロントエンドからAPI経由でプレイヤーUI・1タップ起動を実装
+   - Phase 4：重要度判定・会話形式TTS・Cloud Scheduler連携などの磨き込み
+4. `Requirements.md` の「スコープ外」に書かれた機能は、明示的な指示がない限り実装しない
 
 ## 実装上の注意点
 - **自動再生制限**：ブラウザはユーザー操作なしの音声自動再生をブロックする。ホーム画面アイコンのタップ→即座に再生開始、という1タップ導線で実現すること（完全な自動再生は不可能な前提で設計する）
@@ -44,8 +47,10 @@
 - 記事取得元は最初からホワイトリスト化した数サイトに限定し、全サイト対応は行わない
 
 ## 環境変数
-`.env.example` を参照。実際の値は各自 `.env.local` にコピーして設定し、コミットしないこと。
+`frontend/.env.example`（フロントエンド用）と`backend/.env.example`（バックエンド用）を参照。実際の値は各自コピーして設定し、コミットしないこと。
 
 ## 現時点の未決定事項（着手前に確認）
 - ホワイトリスト対象サイトの最終リスト
 - VOICEVOX ENGINEのCloud Run無料枠でのデモ運用が安定するか（Phase 1で検証）
+- バックエンドのGo用Webフレームワーク（標準`net/http`のみで足りるか、chi等の軽量ルーターを使うか）
+- フロントエンド⇔バックエンド間のAPIエンドポイント・レスポンス形式の詳細設計

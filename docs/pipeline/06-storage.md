@@ -1,8 +1,8 @@
 # ⑦ 保存
-**対応ディレクトリ**: `/lib/firebase`
+**対応ディレクトリ**: `/backend/internal/firebase`
 
 ## 概要
-生成した番組（台本＋音声）をFirestore/Storageに保存する。
+生成した番組（台本＋音声）をFirestore/Storageに保存する。Firestore/Storageへアクセスするのはバックエンド（Go）のみで、フロントエンドは直接アクセスしない（バックエンドAPI経由で取得する）。
 
 ## Firestoreデータモデル（案）
 ```
@@ -29,5 +29,5 @@ programs/{programId}
 
 ## 関連
 - 前のステップ：[⑥音声化](./05-tts.md)
-- `chapters[].sourceUrl` / `chapters[].audioUrl`は[プレイヤー](../features/player.md)で使用
-- `users/{userId}.tags`は[オンボーディング](../features/onboarding.md)で書き込む
+- `chapters[].sourceUrl` / `chapters[].audioUrl`は[プレイヤー](../features/player.md)がバックエンドAPI経由で取得して使用
+- `users/{userId}.tags`は[オンボーディング](../features/onboarding.md)がバックエンドAPI経由で書き込む
