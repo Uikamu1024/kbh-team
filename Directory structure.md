@@ -4,44 +4,32 @@
 
 フロントエンド（Next.js）とバックエンド（Go）は別サービスとして分離し、同一リポジトリ内で`/frontend`と`/backend`に分ける（モノレポ）。フロントエンドはバックエンドのHTTP APIのみを叩く。クラウドへのデプロイは行わず、`docker-compose.yml`（ルート直下）でPostgreSQLとVOICEVOX ENGINEをローカル起動する。
 
+各サービスの詳細なディレクトリ構成・実装方針は、それぞれの`CLAUDE.md`で管理する：
+- フロントエンド：[frontend/CLAUDE.md](frontend/CLAUDE.md)
+- バックエンド：[backend/CLAUDE.md](backend/CLAUDE.md)
+
+## 全体像
 ```
 /docker-compose.yml  PostgreSQL・VOICEVOX ENGINEをローカル起動する定義
-/frontend            Next.js App Router（PWA対応、UIのみ）
-  /app
-    /onboarding      テーマ選択画面
-    /home            番組準備完了画面
-    /player          プレイヤー画面
-  /public            PWAマニフェスト、アイコン
-/backend             Go（バックエンドAPI・パイプライン実行）
-  /cmd
-    /server          main.go：HTTP APIサーバーのエントリポイント
-    /demo            デモ用軽量パイプラインのCLIエントリポイント
-  /internal
-    /pipeline        収集→正規化→重複除去→重要度判定→台本化→音声化（オーケストレーション）
-      fetch.go
-      dedupe.go
-      score.go
-      script.go
-      tts.go
-    /providers       外部サービス実装（差し替え可能にする層）
-      /fetcher
-        types.go      共通インターフェース
-        jina.go        jina.ai Reader実装（デフォルト）
-        firecrawl.go   firecrawl実装（代替）
-      /llm
-        types.go      共通インターフェース
-        gemini.go      Gemini実装（デフォルト）
-      /tts
-        types.go      共通インターフェース
-        voicevox.go    VOICEVOX実装（デフォルト、ローカルのVOICEVOX ENGINEを呼ぶ）
-    /db              PostgreSQLクライアント（データモデルは[docs/pipeline/06-storage.md](docs/pipeline/06-storage.md)参照）
-    /storage         音声ファイルの読み書き（ローカルファイルシステム、`/backend/data/audio`配下）
-    /api             HTTPハンドラ（フロントエンドが呼ぶAPIエンドポイント、バッチ起動用エンドポイントを含む）
-  /data
-    /audio           生成した音声ファイルの保存先（gitignore対象）
 /docs
-  /pipeline          パイプライン各ステップの詳細（実装ファイルと1対1対応）
-  /features          画面・機能ごとの詳細（実装ディレクトリと1対1対応）
+  api-contract.md    フロントエンド⇔バックエンドのAPIコントラクト（共通）
+/frontend            Next.js App Router（PWA対応、UIのみ）。詳細は frontend/CLAUDE.md
+  /app
+  /public
+  /docs
+    design.md
+    /features
+/backend             Go（バックエンドAPI・パイプライン実行）。詳細は backend/CLAUDE.md
+  /cmd
+  /internal
+  /data
+  /docs
+    /pipeline
 ```
 
-`internal/pipeline/*.go`は`internal/providers/*/types.go`のインターフェースだけを参照し、実装はプロバイダファイル単位で完結させる。プロバイダを変更する場合は環境変数（例：`TTS_PROVIDER=voicevox`）で切り替え、インターフェースを満たす新しいファイルを1つ追加するだけで済む設計にする（`pipeline`側のコードは変更不要）。
+## この分割の考え方
+- ルート直下：フロントエンド・バックエンド共通のドキュメント（要件、チーム開発の進め方、API契約、全体アーキテクチャ）
+- `/frontend`配下：フロントエンド固有のドキュメント・実装（UI仕様、デザイン、画面ごとの詳細）
+- `/backend`配下：バックエンド固有のドキュメント・実装（パイプライン各ステップ、プロバイダ実装、DBスキーマ）
+
+`internal/pipeline/*.go`は`internal/providers/*/types.go`のインターフェースだけを参照し、実装はプロバイダファイル単位で完結させる。プロバイダを変更する場合は環境変数（例：`TTS_PROVIDER=voicevox`）で切り替え、インターフェースを満たす新しいファイルを1つ追加するだけで済む設計にする（`pipeline`側のコードは変更不要）。詳細は[backend/CLAUDE.md](backend/CLAUDE.md#プロバイダ層の設計原則)を参照。

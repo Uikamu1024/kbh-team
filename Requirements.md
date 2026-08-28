@@ -1,5 +1,7 @@
 # 要件定義書：通学AIラジオアプリ（仮称）
 
+フロントエンド・バックエンドの両方に関わる、プロダクト全体の要件をまとめる（共通ドキュメント）。実装レベルの詳細は各サービスのドキュメントを参照：[frontend/CLAUDE.md](frontend/CLAUDE.md) / [backend/CLAUDE.md](backend/CLAUDE.md)
+
 ## 1. プロジェクト概要
 通学中に聞ける、テーマ登録型のパーソナルAIラジオ。ユーザーが選んだ関心テーマをもとにAIが記事を収集・要約し、5〜15分の音声番組として毎朝配信する。ニュース・SNS・ブログなど分散した情報源を、通学中に画面を見ずに追える体験を提供する。
 
@@ -14,15 +16,15 @@
 - 「検索していないのに、欲しい情報だけ届いた」という驚きが核
 
 ## 4. MVP機能（今回のハッカソンで必ず作る）
-1. **テーマ選択（オンボーディング）**：自由入力ではなく、タグ選択式（例：「AI」「京都」「ゲーム」などプリセットから複数選択）（詳細：[docs/features/onboarding.md](docs/features/onboarding.md)）
-2. **記事収集**：ホワイトリスト化した数サイト・RSSソースから、テーマごとに10〜20件取得（詳細：[docs/pipeline/01-fetch.md](docs/pipeline/01-fetch.md)）
-3. **重複除去**：タイトル類似度ベースで同一トピックをまとめる（詳細：[docs/pipeline/02-dedupe.md](docs/pipeline/02-dedupe.md)）
-4. **重要度判定**：複数ソースでの言及数・前日との関連性からスコアリングし、冒頭に重要トピックを配置（詳細：[docs/pipeline/03-score.md](docs/pipeline/03-score.md)）
-5. **要約・台本化**：LLMで口語体のラジオ台本を生成（記事1本＝1チャプター）（詳細：[docs/pipeline/04-script.md](docs/pipeline/04-script.md)）
-6. **音声化**：TTSでチャプターごとに音声生成（詳細：[docs/pipeline/05-tts.md](docs/pipeline/05-tts.md)）
-7. **プレイヤーUI**：チャプター単位のシークバー、気になった話は元記事リンクを開ける（詳細：[docs/features/player.md](docs/features/player.md)）
-8. **1タップ起動**：ホーム画面アイコンをタップ→ワンタップで再生開始（ブラウザの自動再生制限への対応）（詳細：[docs/features/home.md](docs/features/home.md)）
-9. **番組の保存**：Firestoreに番組メタデータ、Storageに音声ファイル（詳細：[docs/pipeline/06-storage.md](docs/pipeline/06-storage.md)）
+1. **テーマ選択（オンボーディング）**：自由入力ではなく、タグ選択式（例：「AI」「京都」「ゲーム」などプリセットから複数選択）（詳細：[frontend/docs/features/onboarding.md](frontend/docs/features/onboarding.md)）
+2. **記事収集**：ホワイトリスト化した数サイト・RSSソースから、テーマごとに10〜20件取得（詳細：[backend/docs/pipeline/01-fetch.md](backend/docs/pipeline/01-fetch.md)）
+3. **重複除去**：タイトル類似度ベースで同一トピックをまとめる（詳細：[backend/docs/pipeline/02-dedupe.md](backend/docs/pipeline/02-dedupe.md)）
+4. **重要度判定**：複数ソースでの言及数・前日との関連性からスコアリングし、冒頭に重要トピックを配置（詳細：[backend/docs/pipeline/03-score.md](backend/docs/pipeline/03-score.md)）
+5. **要約・台本化**：LLMで口語体のラジオ台本を生成（記事1本＝1チャプター）（詳細：[backend/docs/pipeline/04-script.md](backend/docs/pipeline/04-script.md)）
+6. **音声化**：TTSでチャプターごとに音声生成（詳細：[backend/docs/pipeline/05-tts.md](backend/docs/pipeline/05-tts.md)）
+7. **プレイヤーUI**：チャプター単位のシークバー、気になった話は元記事リンクを開ける（詳細：[frontend/docs/features/player.md](frontend/docs/features/player.md)）
+8. **1タップ起動**：ホーム画面アイコンをタップ→ワンタップで再生開始（ブラウザの自動再生制限への対応）（詳細：[frontend/docs/features/home.md](frontend/docs/features/home.md)）
+9. **番組の保存**：PostgreSQLに番組メタデータ、ローカルファイルシステムに音声ファイル（詳細：[backend/docs/pipeline/06-storage.md](backend/docs/pipeline/06-storage.md)）
 
 ## 5. スコープ外（今回はやらない）
 - 個人診断による興味判定（タグ選択式で代替）
@@ -34,16 +36,16 @@
 - BGM／複数のトーン切り替え（単調さ対策は「2人会話形式」の1本に絞る）
 
 ## 6. 画面一覧
-1. [オンボーディング](docs/features/onboarding.md)（テーマ選択、2〜3個まで）
-2. [ホーム](docs/features/home.md)（今日の番組が準備完了、タップで再生）
-3. [プレイヤー](docs/features/player.md)（チャプターリスト、記事リンク展開、シークバー）
+1. [オンボーディング](frontend/docs/features/onboarding.md)（テーマ選択、2〜3個まで）
+2. [ホーム](frontend/docs/features/home.md)（今日の番組が準備完了、タップで再生）
+3. [プレイヤー](frontend/docs/features/player.md)（チャプターリスト、記事リンク展開、シークバー）
 
 ## 7. 単調さ対策
 2人の話者による会話形式のTTS生成を採用（BGMやトーン変更より実装コストが低く、体感的な変化を出しやすいため）。
 
 ## 8. 非機能要件・デモ運用方針
 - 本番デモ用の音声は**事前生成**しておく（LLM/TTS APIの遅延・失敗はデモ本番最大のリスク要因のため）
-- 別途、記事数を絞った軽量パイプライン（3記事程度）を用意し、その場でテーマを変えて数十秒で番組が生成される様子をライブデモできるようにする
+- 別途、記事数を絞った軽量パイプライン（3記事程度）を用意し、その場でテーマを変えて数十秒で番組が生成される様子をライブデモできるようにする（詳細：[backend/CLAUDE.md](backend/CLAUDE.md#デモ用の軽量パイプライン)）
 - 生成バッチは固定時刻（毎朝6:00想定）で実行する設計とする
 
 ## 9. オープン課題への決定事項
@@ -55,3 +57,5 @@
 | アプリ化 or Web完結 | PWAで完結（ネイティブ化・ウィジェットは対象外） |
 | 記事の要約（写真の扱い） | テキストのみ、画像は扱わない |
 | 質の低い記事の除外 | 重要度スコアリングのロジックに統合（別機能として作らない） |
+
+各領域固有の未決定事項（ホワイトリスト対象サイト、Webフレームワーク選定など）は[backend/CLAUDE.md](backend/CLAUDE.md#未決定事項)を参照。

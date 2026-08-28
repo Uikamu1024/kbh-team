@@ -4,7 +4,7 @@
 ## 概要
 生成した番組（台本＋音声）をPostgreSQLとローカルファイルシステムに保存する。DB・ファイルへアクセスするのはバックエンド（Go）のみで、フロントエンドは直接アクセスせずバックエンドAPI経由で取得する。
 
-PostgreSQLはDockerでローカル起動する（[docker-compose.yml](../../Directory%20structure.md)参照）。
+PostgreSQLはDockerでローカル起動する（[docker-compose.yml](../../../Directory%20structure.md)参照）。
 
 ## PostgreSQLスキーマ（案）
 ```sql
@@ -38,5 +38,6 @@ CREATE TABLE chapters (
 
 ## 関連
 - 前のステップ：[⑥音声化](./05-tts.md)
-- `chapters.source_url` / `chapters.audio_path`は[プレイヤー](../features/player.md)がバックエンドAPI経由で取得して使用
-- `users.tags`は[オンボーディング](../features/onboarding.md)がバックエンドAPI経由で書き込む
+- `chapters.source_url` / `chapters.audio_path`は[プレイヤー](../../../frontend/docs/features/player.md)がバックエンドAPI経由で取得して使用
+- `users.tags`は[オンボーディング](../../../frontend/docs/features/onboarding.md)がバックエンドAPI経由で書き込む
+- APIの形状は[docs/api-contract.md](../../../docs/api-contract.md)を参照

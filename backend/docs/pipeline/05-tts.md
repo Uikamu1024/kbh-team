@@ -12,4 +12,4 @@
 ## 関連
 - 前のステップ：[⑤要約・台本化](./04-script.md)
 - 次のステップ：[⑦保存](./06-storage.md)
-- VOICEVOX ENGINEはDockerでローカル起動する（クラウドへはデプロイしない。[docker-compose.yml](../../Directory%20structure.md)参照）
+- VOICEVOX ENGINEはDockerでローカル起動する（クラウドへはデプロイしない。[docker-compose.yml](../../../Directory%20structure.md)参照）
