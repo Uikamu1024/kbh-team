@@ -25,16 +25,28 @@
   /home              番組準備完了画面
   /player            プレイヤー画面
 /lib
-  /pipeline          収集→正規化→重複除去→重要度判定→台本化→音声化
+  /pipeline          収集→正規化→重複除去→重要度判定→台本化→音声化（オーケストレーション）
     fetch.ts
     dedupe.ts
     score.ts
     script.ts
     tts.ts
+  /providers         外部サービス実装（差し替え可能にする層）
+    /fetcher
+      types.ts        共通インターフェース
+      jina.ts          jina.ai Reader実装（デフォルト）
+      firecrawl.ts     firecrawl実装（代替）
+    /llm
+      types.ts        共通インターフェース
+      gemini.ts        Gemini実装（デフォルト）
+    /tts
+      types.ts        共通インターフェース
+      voicevox.ts      VOICEVOX実装（デフォルト）
   /firebase          Firestore/Storageクライアント
 /public              PWAマニフェスト、アイコン
 /scripts             デモ用の軽量パイプライン実行スクリプト
 ```
+`pipeline/*.ts`は`providers/*/types.ts`のインターフェースだけを参照し、実装はプロバイダファイル単位で完結させる。プロバイダを変更する場合は環境変数（例：`TTS_PROVIDER=voicevox`）で切り替え、インターフェースを満たす新しいファイルを1つ追加するだけで済む設計にする（`pipeline`側のコードは変更不要）。
 
 ## デザイン方針
 参考デザインとして **Spotify** を採用する。
@@ -46,7 +58,7 @@
 ただしSpotifyと異なり「探す・選ぶ」体験（検索・ライブラリ）は不要。ホーム→即再生→チャプター一覧、というシンプルな導線に絞る。
 
 ## 開発方針・優先順位
-1. **保守性を優先**：パイプラインの各ステップ（fetch/dedupe/score/script/tts）は関数として疎結合に保ち、後から差し替え可能にする（TTSやLLMのプロバイダを途中で変える可能性があるため）
+1. **保守性を優先**：記事取得・LLM・TTSは`/lib/providers`配下にプロバイダ単位でファイル分割し、共通インターフェース（`types.ts`）経由で`/lib/pipeline`から呼び出す。TTSやLLMのプロバイダ（VOICEVOXやGeminiなど）を途中で変える可能性があるため、実装差し替え時に他のコードへ影響が及ばないようにする
 2. フェーズ分けで進める：
    - Phase 1：1テーマで収集→要約→TTSの一気通貫パイプラインを通す（モックデータでもいい）
    - Phase 2：Firestore/Storage連携、複数テーマ対応

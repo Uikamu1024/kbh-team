@@ -7,7 +7,7 @@
 
 ## ① 収集（fetch.ts）
 - テーマ（タグ）ごとに紐付けたホワイトリストサイト・RSSフィードから記事を取得
-- 取得元は jina.ai Reader を第一候補とする（`https://r.jina.ai/<URL>` で本文をMarkdown化して取得可能）。詰まった場合はfirecrawl free tierに切替
+- 取得元は`/lib/providers/fetcher`配下のプロバイダ実装を呼び出す形にする。jina.ai Reader（`providers/fetcher/jina.ts`、`https://r.jina.ai/<URL>` で本文をMarkdown化して取得）を第一候補とし、詰まった場合は`providers/fetcher/firecrawl.ts`（firecrawl free tier）に切替。切替は`types.ts`の共通インターフェースを満たす限り`fetch.ts`側の変更なしで行える
 - 取得件数はテーマあたり10〜20件に制限（レイテンシ・トークン消費対策）
 
 ## ② 正規化
@@ -28,6 +28,7 @@
 このロジックは「質の低い記事の除外」も兼ねる（低スコアの記事は番組から除外 or 末尾に回す）。
 
 ## ⑤ 要約・台本化（script.ts）
+- `/lib/providers/llm`配下のプロバイダ実装（デフォルト：`providers/llm/gemini.ts`、Gemini API）にLLM呼び出し部分を委譲する。プロバイダ変更時は`types.ts`のインターフェースを満たす新規ファイルを追加するのみで、`script.ts`側は変更不要
 - LLMに記事群を渡し、口語体のラジオ台本を生成
 - 2人の話者による会話形式を採用（単調さ対策）
 - プロンプト設計の骨子：
@@ -37,6 +38,7 @@
   - 末尾に締めの一言
 
 ## ⑥ 音声化（tts.ts）
+- `/lib/providers/tts`配下のプロバイダ実装（デフォルト：`providers/tts/voicevox.ts`、VOICEVOX）にTTS呼び出し部分を委譲する。VOICEVOXが使えない場合は同じインターフェースを満たす別プロバイダファイル（例：Google Cloud TTS）を追加すれば`tts.ts`側は変更不要
 - チャプターごとにTTS APIへ投げ、2話者分の音声を生成・結合
 - 早口すぎない速度に調整（デモでの聞き取りやすさ重視）
 
