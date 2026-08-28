@@ -1,33 +1,42 @@
 # ⑦ 保存
-**対応ディレクトリ**: `/backend/internal/firebase`
+**対応ディレクトリ**: `/backend/internal/db`（PostgreSQL）、`/backend/internal/storage`（音声ファイル）
 
 ## 概要
-生成した番組（台本＋音声）をFirestore/Storageに保存する。Firestore/Storageへアクセスするのはバックエンド（Go）のみで、フロントエンドは直接アクセスしない（バックエンドAPI経由で取得する）。
+生成した番組（台本＋音声）をPostgreSQLとローカルファイルシステムに保存する。DB・ファイルへアクセスするのはバックエンド（Go）のみで、フロントエンドは直接アクセスせずバックエンドAPI経由で取得する。
 
-## Firestoreデータモデル（案）
+PostgreSQLはDockerでローカル起動する（[docker-compose.yml](../../Directory%20structure.md)参照）。
+
+## PostgreSQLスキーマ（案）
+```sql
+CREATE TABLE users (
+  id UUID PRIMARY KEY,
+  tags TEXT[] NOT NULL DEFAULT '{}'   -- 選択したテーマタグ
+);
+
+CREATE TABLE programs (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE chapters (
+  id UUID PRIMARY KEY,
+  program_id UUID NOT NULL REFERENCES programs(id),
+  position INT NOT NULL,              -- 番組内の並び順
+  title TEXT NOT NULL,
+  source_url TEXT NOT NULL,
+  source_name TEXT NOT NULL,
+  script TEXT NOT NULL,
+  audio_path TEXT NOT NULL,           -- ローカルファイルシステム上のパス
+  importance_score INT NOT NULL
+);
 ```
-users/{userId}
-  tags: string[]              // 選択したテーマタグ
 
-programs/{programId}
-  userId: string
-  createdAt: timestamp
-  chapters: [
-    {
-      title: string
-      sourceUrl: string
-      sourceName: string
-      script: string
-      audioUrl: string        // Storageへの参照
-      importanceScore: number
-    }
-  ]
-```
-
-## Storage
-- 音声ファイル（チャプターごと、またはプログラム単位で結合済み1本）
+## 音声ファイルの保存先
+- `/backend/data/audio/{programId}/{chapterId}.mp3`（チャプターごと）のようにローカルファイルシステムへ保存
+- `chapters.audio_path`にファイルパスを保存し、バックエンドAPIが配信する（例：`GET /api/audio/{programId}/{chapterId}`）
 
 ## 関連
 - 前のステップ：[⑥音声化](./05-tts.md)
-- `chapters[].sourceUrl` / `chapters[].audioUrl`は[プレイヤー](../features/player.md)がバックエンドAPI経由で取得して使用
-- `users/{userId}.tags`は[オンボーディング](../features/onboarding.md)がバックエンドAPI経由で書き込む
+- `chapters.source_url` / `chapters.audio_path`は[プレイヤー](../features/player.md)がバックエンドAPI経由で取得して使用
+- `users.tags`は[オンボーディング](../features/onboarding.md)がバックエンドAPI経由で書き込む

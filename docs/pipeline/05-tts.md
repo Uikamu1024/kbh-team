@@ -12,4 +12,4 @@
 ## 関連
 - 前のステップ：[⑤要約・台本化](./04-script.md)
 - 次のステップ：[⑦保存](./06-storage.md)
-- VOICEVOX ENGINEはバックエンドと同じくCloud Runへのデプロイを想定。無料枠でのデモ運用が安定するかは未検証（[CLAUDE.md](../../CLAUDE.md)の未決定事項参照）
+- VOICEVOX ENGINEはDockerでローカル起動する（クラウドへはデプロイしない。[docker-compose.yml](../../Directory%20structure.md)参照）

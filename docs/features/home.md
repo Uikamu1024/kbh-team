@@ -13,5 +13,5 @@
 - **自動再生制限**：ブラウザはユーザー操作なしの音声自動再生をブロックする。ホーム画面アイコンのタップ→即座に再生開始、という1タップ導線で実現すること（完全な自動再生は不可能な前提で設計する）
 
 ## 関連
-- 再生する番組データはバックエンドAPI経由で取得する（元は[保存](../pipeline/06-storage.md)の`programs/{programId}`）
-- 生成バッチは固定時刻（毎朝6:00想定、Cloud Scheduler経由）で実行される前提（[Requirements.md](../../Requirements.md)参照）
+- 再生する番組データはバックエンドAPI経由で取得する（元は[保存](../pipeline/06-storage.md)の`programs`テーブル）
+- 生成バッチは固定時刻（毎朝6:00想定、ローカルでのcron/手動実行）で実行される前提（[Requirements.md](../../Requirements.md)参照。自動化方法は[CLAUDE.md](../../CLAUDE.md)の未決定事項参照）

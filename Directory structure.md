@@ -2,9 +2,10 @@
 
 開発が進むにつれて階層が変わる可能性が高いため、`CLAUDE.md`とは別ファイルで管理する。変更した場合はこのファイルを更新すること。
 
-フロントエンド（Next.js）とバックエンド（Go）は別サービスとして分離し、同一リポジトリ内で`/frontend`と`/backend`に分ける（モノレポ）。フロントエンドはバックエンドのHTTP APIのみを叩き、Firebaseへ直接アクセスしない。
+フロントエンド（Next.js）とバックエンド（Go）は別サービスとして分離し、同一リポジトリ内で`/frontend`と`/backend`に分ける（モノレポ）。フロントエンドはバックエンドのHTTP APIのみを叩く。クラウドへのデプロイは行わず、`docker-compose.yml`（ルート直下）でPostgreSQLとVOICEVOX ENGINEをローカル起動する。
 
 ```
+/docker-compose.yml  PostgreSQL・VOICEVOX ENGINEをローカル起動する定義
 /frontend            Next.js App Router（PWA対応、UIのみ）
   /app
     /onboarding      テーマ選択画面
@@ -32,9 +33,12 @@
         gemini.go      Gemini実装（デフォルト）
       /tts
         types.go      共通インターフェース
-        voicevox.go    VOICEVOX実装（デフォルト）
-    /firebase        Firestore/Storageクライアント（Firebase Admin SDK for Go）
-    /api             HTTPハンドラ（フロントエンドが呼ぶAPIエンドポイント、Cloud Schedulerからのバッチ起動を含む）
+        voicevox.go    VOICEVOX実装（デフォルト、ローカルのVOICEVOX ENGINEを呼ぶ）
+    /db              PostgreSQLクライアント（データモデルは[docs/pipeline/06-storage.md](docs/pipeline/06-storage.md)参照）
+    /storage         音声ファイルの読み書き（ローカルファイルシステム、`/backend/data/audio`配下）
+    /api             HTTPハンドラ（フロントエンドが呼ぶAPIエンドポイント、バッチ起動用エンドポイントを含む）
+  /data
+    /audio           生成した音声ファイルの保存先（gitignore対象）
 /docs
   /pipeline          パイプライン各ステップの詳細（実装ファイルと1対1対応）
   /features          画面・機能ごとの詳細（実装ディレクトリと1対1対応）
