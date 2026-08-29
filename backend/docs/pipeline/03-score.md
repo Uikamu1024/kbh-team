@@ -1,6 +1,10 @@
 # ④ 重要度判定
 **対応ファイル**: `/backend/internal/pipeline/score.go`
 
+**改訂(2026-08-29)：このステップはキャッシュ経由の生成（`demo/generate`・`regenerate`・`batch/run`）では廃止された。** 選択は[docs/generation/03-selection.md](../generation/03-selection.md)の「ユーザーのタグ一覧＋公開日時の新しい順」に置き換わり、LLMによる重要度スコアリングは行わない（`ImportanceScore`という概念自体が無くなる）。`ceil(lengthMinutes * 60 / assumedChapterSeconds)`による採用件数決定のロジックだけは、スコア降順ではなく公開日時降順のリストに対して[docs/generation/03-selection.md](../generation/03-selection.md)側で引き続き使われる。
+
+このドキュメントの内容は**`cmd/demo`（ライブfetchのCLIデモ、testWhitelist経由）でのみ有効**。`cmd/demo`はキャッシュ化の対象外のため、従来通りLLMスコアリング＋本ドキュメントの採用ロジックのまま残す。
+
 ## 概要
 記事の重要度をスコアリングし、番組冒頭に重要トピックを配置する。「何件を番組に採用するか」を`lengthMinutes`（ポッドキャストの長さ設定）に基づいて決めるのもこのステップの責務。質の低い記事の除外も兼ねる（別機能として作らない）。
 

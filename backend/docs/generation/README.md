@@ -14,13 +14,17 @@
 
 ```
 [収集ジョブ]（定期実行、ユーザーからは独立）
-  RSSフィード一覧を読む → 各フィードの記事URL一覧を取得 → 本文取得 → タグ付け → 重複判定
-  → articlesキャッシュ（PostgreSQL）にupsert
+  RSSフィード一覧を読む → 各フィードの記事URL一覧を取得 → 本文取得
+  → LLM構造化出力でメタデータ抽出（タグ・省略版タイトル・著者・省略版本文）
+  → LLMベースの重複判定 → articlesキャッシュ（PostgreSQL）にupsert
 
 [生成](demo/generate・regenerate・batch/run)
-  ユーザーのtags → articlesキャッシュをSELECT（外部通信なし）
-  → 既存のスコアリング・台本化・音声化パイプラインへそのまま渡す
+  ユーザーのtags → articlesキャッシュをSELECT（外部通信・LLM呼び出しなし、公開日時の新しい順）
+  → 選ばれた各トピックについて1トピック=1回のLLM呼び出しで台本生成（+挨拶文1回）
+  → 音声化パイプラインへ
 ```
+
+**改訂(2026-08-29)**：初稿ではタグ付けをフィード決め打ち・重複判定を文字列類似度・記事の選択をLLM重要度スコアリングで行う設計だったが、ユーザーからのレビューで全面的に見直した。詳細は[3回目の改訂](#3回目の改訂タグ付け重複判定選択方式の全面変更)を参照。
 
 収集ジョブが外部通信（RSS取得・jina.ai本文取得）を一手に引き受けるので、生成側は完全にDBローカルな処理になり、レート制限・レイテンシの両方から解放される。
 
@@ -36,10 +40,11 @@
 | 既存 | 置き換え後 |
 | --- | --- |
 | `internal/pipeline/fetch.go`（生成リクエスト内でライブfetch） | 廃止。生成時は[03-selection.md](03-selection.md)のキャッシュSELECTに置き換わる |
-| `internal/pipeline/dedupe.go`（1回のfetch結果内でのみ重複判定） | 収集ジョブ側（[02-ingestion.md](02-ingestion.md)）でキャッシュ全体を対象に重複判定するロジックへ移設。**類似度アルゴリズム自体（文字bigram Jaccard、閾値0.35、既知の限界も含む）はそのまま再利用する** |
+| `internal/pipeline/dedupe.go`（文字bigram Jaccard類似度） | **廃止（2026-08-29改訂）**。収集ジョブ側（[02-ingestion.md](02-ingestion.md)手順6）でLLMベースの重複判定に置き換え |
 | `internal/providers/fetcher/jina.go`の`testWhitelist` | [01-feed-config.md](01-feed-config.md)の`article.json`（RSS URL一覧）に置き換え |
-| `internal/pipeline/score.go`（④重要度判定） | **変更なし**。入力が「ライブfetch直後のTopic」から「キャッシュから選択したTopic」に変わるだけで、スコアリングロジック自体はそのまま使う |
-| `internal/pipeline/script.go`・`tts.go`（⑤⑥） | **変更なし** |
+| `internal/pipeline/score.go`（④重要度判定、LLMスコアリング） | **キャッシュ経由の生成では廃止（2026-08-29改訂）**。[03-selection.md](03-selection.md)のタグ・鮮度ベース選択に置き換え。`cmd/demo`のライブfetch経路でのみ引き続き使用 |
+| `internal/pipeline/script.go`（台本生成） | **呼び出し方式を変更（2026-08-29改訂）**。全トピックまとめて1回→挨拶文1回＋トピックごとに1回（[docs/pipeline/04-script.md](../pipeline/04-script.md)） |
+| `tts.go`（⑥音声化） | 変更なし |
 
 承認され次第、`docs/pipeline/01-fetch.md`・`02-dedupe.md`はこのディレクトリの内容を正として更新する。
 
@@ -79,3 +84,32 @@
 | 収集ジョブと生成の実行順序保証 | `cmd/ingest`が最低1回成功していることを前提とする運用注意を明記（cronの間隔をずらす、デモ前は手動実行） | [02-ingestion.md](02-ingestion.md) |
 | Firecrawlフォールバック・言語判定・canonical URL・利用規約配慮・極端に短い本文の除外 | いずれも「今回は導入しない／運用ルールとして一言明記するのみ」で確定 | [02-ingestion.md](02-ingestion.md) |
 | 最低限の可観測性 | 監視ダッシュボードは作らず、実行ごとにフィード別の取得件数・成功失敗数をログ出力する方針のみ明記 | [02-ingestion.md](02-ingestion.md) |
+
+## 3回目の改訂：タグ付け・重複判定・選択方式の全面変更
+初稿の実装を実際にOllama Cloud（gpt-oss:20b）で動かして検証した結果、以下の問題が見つかり、ユーザーの指示で設計を全面的に見直した：
+
+- タグがフィード決め打ちのままで、記事の中身に応じた柔軟な判定ができない
+- 重複判定の文字bigram Jaccard類似度は既知の限界があり放置されていた
+- 記事本文を一律1200文字に切り詰めていたため、記事によっては（ナビゲーションリンクが本文の前に大量に入るサイトで）本文が実質ゼロになっていた
+- 台本生成が「選定した全トピックをまとめて1回のプロンプトで生成」する方式で、チャプール数が増える（14件等）と応答JSONが完成前に打ち切られ、失敗するようになった
+- 生成のたびにLLMで重要度スコアリングをやり直すのは無駄
+
+**ユーザーとの質疑応答で確定した内容**：
+
+| 論点 | 決定事項 |
+| --- | --- |
+| タグ判定の方式 | フィード決め打ちをやめ、**記事の中身をLLMに読ませて判定**する方式に変更（[01-feed-config.md](01-feed-config.md)・[02-ingestion.md](02-ingestion.md)） |
+| 構造化出力の採用可否 | Ollama Cloudに構造化出力対応モデル（Gemma系）があるため採用可能。メタデータ抽出はJSON Schemaで型を強制する構造化出力を使う |
+| `shortenedTitle`の用途・長さ | UI表示用。45文字以内 |
+| 本文の要約(`abbreviatedBody`)の閾値・方式 | 元本文が**2500文字を超える場合のみ**LLMに要約させる。2500文字以下はそのまま元本文を使う（一律切り詰めの廃止） |
+| メタデータに追加したい項目 | 公開日時（本文から確認できれば優先）・著者（取得できれば） |
+| 重複判定の方式 | タイトル一覧（元タイトル、shortenedTitleではない）をLLMに一括で投げ、同一と思われるものに同じgroup idを割り振る。ingest実行1回につき1回のLLM呼び出し（[02-ingestion.md](02-ingestion.md)手順6） |
+| 記事選択の方式 | LLM重要度スコアリングを廃止し、**ユーザーが選択しているタグ一覧＋公開日時の新しい順**で選択（[03-selection.md](03-selection.md)） |
+| 台本生成の呼び出し方式 | 選ばれた記事それぞれを**1トピック=1回のLLM呼び出し**で台本化（メタデータをプロンプトに含める）。生成後の読み上げ(TTS)ロジックは変更なし（[docs/pipeline/04-script.md](../pipeline/04-script.md)） |
+
+**反映先ファイル**：[01-feed-config.md](01-feed-config.md)・[02-ingestion.md](02-ingestion.md)・[03-selection.md](03-selection.md)・[04-schema.md](04-schema.md)・[docs/pipeline/03-score.md](../pipeline/03-score.md)（`cmd/demo`専用に縮小）・[docs/pipeline/04-script.md](../pipeline/04-script.md)。
+
+**未確定のまま残る点**：
+- 構造化出力に使う具体的なモデル（Ollama Cloud上のGemma系モデル名）は未確定
+- LLMベースの重複判定バッチが大きくなりすぎた場合の分割方法は実装時の裁量
+- `importance_score`カラム・関連コードの実際の削除（このドキュメント更新時点ではコード側は未着手。前回のセッションで一度実装した`ScoreAndSelect`によるキャッシュ経由スコアリング・ingest時スコアリングは、この改訂により丸ごと不要になる）

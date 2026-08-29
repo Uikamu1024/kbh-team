@@ -8,18 +8,24 @@
 今回は**既存の`0001_init.sql`に追記する**方式を採る（`db.go`の変更を避け、既存の起動フローを一切変えずに済むため）。`CREATE TABLE IF NOT EXISTS`の冪等性は維持する。
 
 ## `articles`（記事キャッシュ）
+
+**改訂(2026-08-29)**：`importance_score`を廃止（[03-selection.md](03-selection.md)参照、選択はタグベースに変更したためスコアが不要になった）。LLM構造化出力（[02-ingestion.md](02-ingestion.md)手順5）で取得する`shortened_title`・`author`を追加し、本文は`abbreviatedBody`が得られた場合のみそちらを別カラムに保持する。
+
 ```sql
 CREATE TABLE IF NOT EXISTS articles (
   id UUID PRIMARY KEY,
   feed_id TEXT NOT NULL,              -- article.json上のフィードid（障害調査用のトレーサビリティ）
-  topic_group_id UUID NOT NULL,       -- 重複判定で同一トピックとみなされた記事群のグループID（自分自身のidの場合もある）
+  topic_group_id UUID NOT NULL,       -- 重複判定(LLMベース)で同一トピックとみなされた記事群のグループID（自分自身のidの場合もある）
   is_primary BOOLEAN NOT NULL,        -- グループ内で本文が最も充実している代表記事か
-  title TEXT NOT NULL,
-  body TEXT NOT NULL,
-  published_at TIMESTAMPTZ NOT NULL,
+  title TEXT NOT NULL,                -- 元タイトル（重複判定・台本生成のソース情報として使う）
+  shortened_title TEXT,               -- LLMが生成したUI表示用の短いタイトル（45文字以内、nullを許容）
+  author TEXT,                        -- LLMが本文から抽出した著者名（抽出できなければNULL）
+  body TEXT NOT NULL,                 -- 元の本文（jina.ai取得のまま）
+  abbreviated_body TEXT,              -- 本文が2500文字を超える場合のみLLMが生成した要約。NULLの場合はbodyをそのまま使う
+  published_at TIMESTAMPTZ NOT NULL,  -- 本文から確認できればLLM抽出値を優先、できなければRSSのpubDate
   source_name TEXT NOT NULL,
   source_url TEXT NOT NULL UNIQUE,    -- 新着判定（02-ingestion.mdの手順3）に使う
-  tags TEXT[] NOT NULL DEFAULT '{}',  -- 代表記事は合流した全記事のタグの合算、非代表記事は自分の元タグのみ
+  tags TEXT[] NOT NULL DEFAULT '{}',  -- 記事ごとにLLMが本文から判定。代表記事はグループ内全記事のタグを合算
   fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -34,7 +40,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS articles_one_primary_per_group_idx
 ```
 
 - `tags && $1::text[]`（配列オーバーラップ検索、[03-selection.md](03-selection.md)）用に`tags`へGINインデックスを張る。ハッカソン規模のデータ量では無くても致命的に遅くはならないが、張ること自体のコストもほぼ無いため残す（「これが無いと遅い」という強い主張はしない）
-- `RelatedCount`（[③重複除去](../pipeline/02-dedupe.md)相当の値）はテーブルに持たせず都度算出する。ただし[03-selection.md](03-selection.md)の候補取得SQLは`is_primary = true`の行だけを見るため、素朴な`count(*)`をそのまま足すと集計対象が無くなる点に注意（詳細は[03-selection.md](03-selection.md)の該当箇所を参照）
+- `RelatedCount`（同一`topic_group_id`の記事数。重複判定は[02-ingestion.md](02-ingestion.md)手順6のLLMベース判定に変更済み）はテーブルに持たせず都度算出する。ただし[03-selection.md](03-selection.md)の候補取得SQLは`is_primary = true`の行だけを見るため、素朴な`count(*)`をそのまま足すと集計対象が無くなる点に注意（詳細は[03-selection.md](03-selection.md)の該当箇所を参照）
 - 削除・有効期限ポリシーは今回設けない（明示的にスコープ外とする）。ただし記事の**選択対象としての鮮度**（何日以内の記事を候補にするか）は別途[02-ingestion.md](02-ingestion.md)・[03-selection.md](03-selection.md)で定める（キャッシュから消すかどうかとは別の話）
 
 ## `user_seen_topics`（ユーザーごとの既読トピック）
@@ -50,7 +56,7 @@ CREATE TABLE IF NOT EXISTS user_seen_topics (
 - [03-selection.md](03-selection.md)の「既読トピック除外」に使う
 - `topic_group_id`は`articles.topic_group_id`を参照する想定だが、あえて外部キー制約は張らない（`articles`側の行が将来何らかの理由で削除された場合でも、既読記録自体は残ってよいため）
 
-**Codexレビューでの指摘と結論**：「既に確立した2つの`topic_group_id`が後から統合されると、既読記録の整合性が壊れるのでは」という懸念が出たが、[02-ingestion.md](02-ingestion.md)の重複判定アルゴリズム（`bestMatchingGroup`、現行`dedupe.go`のロジックをそのまま流用）は**新しい記事を既存の1つのgroupへ追記するだけ**であり、既に確立された2つのgroup同士を統合する処理は存在しない。したがってこの懸念は本設計には該当しない（アルゴリズムの性質上、`topic_group_id`は一度発行されたら他のgroup_idに吸収されることはない）。この前提を崩す変更（例：groupの事後マージ機能の追加）を行う場合は、本セクションの設計を見直すこと。
+**設計上の前提**：「既に確立した2つの`topic_group_id`が後から統合されると、既読記録の整合性が壊れるのでは」という懸念について。[02-ingestion.md](02-ingestion.md)手順6のLLMベース重複判定は、新規記事を「既存groupへ合流」または「バッチ内の他の新規記事とグルーピングして新group発行」のいずれかにするだけで、**既に確立された2つのgroup同士を事後的に統合する処理は無い**。したがって`topic_group_id`は一度発行されたら他のgroup_idに吸収されることはなく、この懸念は本設計には該当しない。将来groupの事後マージ機能を追加する場合は、本セクションの設計（FK制約なし）を見直すこと。
 
 ## 既存テーブルへの変更
 なし。`chapters`テーブルは現行のまま（`source_url`等を引き続き非正規化して保持する。`articles`テーブルへのFK付与は行わない＝生成後にキャッシュ側の記事が更新されても、既に生成済みの番組の内容は変わらない）。
