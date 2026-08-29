@@ -560,22 +560,52 @@ The greeting must mention that there are %d change/new topics in today's program
 Do not include a user's display name.`, changeCount)
 }
 
+// buildChapterPrompt includes the article's metadata (shortenedTitle, tags,
+// author, sourceName, sourceURL, publishedAt) alongside its body
+// (backend/docs/generation/03-selection.md: "プロンプトには記事のメタデータ
+// ...も含める"). Fields populated only by the ingest job's LLM metadata
+// extraction (backend/docs/generation/02-ingestion.md step 5) — shortenedTitle,
+// tags, author, abbreviatedBody — are empty for topics from the live-fetch
+// cmd/demo path, which does not run that extraction; empty lines are omitted
+// rather than sent to the model as literal blanks.
 func buildChapterPrompt(topic domain.SelectedTopic, isLast bool) string {
 	transitionInstruction := "Include a natural spoken transition into this topic."
 	if isLast {
 		transitionInstruction += " End the chapter with a brief closing sentence for the whole program."
 	}
+
+	body := topic.Primary.Body
+	if strings.TrimSpace(topic.Primary.AbbreviatedBody) != "" {
+		// Prefer the ingest job's LLM-summarized body when the original body
+		// was long enough to warrant one (backend/docs/generation/02-ingestion.md
+		// step 5); otherwise the untruncated original body is used as-is.
+		body = topic.Primary.AbbreviatedBody
+	}
+
+	var metadata strings.Builder
+	fmt.Fprintf(&metadata, "Title: %s\n", topic.Primary.Title)
+	if strings.TrimSpace(topic.Primary.ShortenedTitle) != "" {
+		fmt.Fprintf(&metadata, "Shortened title: %s\n", topic.Primary.ShortenedTitle)
+	}
+	if len(topic.Primary.Tags) > 0 {
+		fmt.Fprintf(&metadata, "Tags: %s\n", strings.Join(topic.Primary.Tags, ", "))
+	}
+	if strings.TrimSpace(topic.Primary.Author) != "" {
+		fmt.Fprintf(&metadata, "Author: %s\n", topic.Primary.Author)
+	}
+	fmt.Fprintf(&metadata, "Source: %s (%s)\n", topic.Primary.SourceName, topic.Primary.SourceURL)
+	if !topic.Primary.PublishedAt.IsZero() {
+		fmt.Fprintf(&metadata, "Published at: %s\n", topic.Primary.PublishedAt.Format(time.RFC3339))
+	}
+	fmt.Fprintf(&metadata, "Related article count: %d\n", topic.RelatedCount)
+
 	return fmt.Sprintf(`Generate one chapter of a natural, conversational Japanese radio script covering this single news topic.
 Return only JSON with this exact shape: {"lines":[{"speaker":"A","text":"..."}]}.
 The chapter must contain 2 to 4 lines, alternating speakers A and B.
 %s
 Do not include a user's display name. Use only speaker values "A" or "B".
 
-Title: %s
-Article body: %s
-Source: %s (%s)
-Related article count: %d`, transitionInstruction, topic.Primary.Title, stripNavigationLines(topic.Primary.Body),
-		topic.Primary.SourceName, topic.Primary.SourceURL, topic.RelatedCount)
+%sArticle body: %s`, transitionInstruction, metadata.String(), stripNavigationLines(body))
 }
 
 func parseScoreResult(apiResponse, provider string) (int, bool, error) {
