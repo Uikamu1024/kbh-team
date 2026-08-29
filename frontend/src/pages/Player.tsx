@@ -240,9 +240,8 @@ export default function Player() {
       />
 
       <div
-        className="relative flex overflow-hidden rounded-[22px] p-6"
+        className="relative flex min-h-[180px] overflow-hidden rounded-[22px] p-6"
         style={{
-          aspectRatio: "1 / 0.82",
           background: "linear-gradient(160deg, #1c4d33, #0e2a1c 55%, #0a1a12)",
         }}
       >
