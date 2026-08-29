@@ -1,23 +1,19 @@
 // gentrace is a debugging/verification tool: it runs the full article→audio
-// pipeline exactly like cmd/demo, but with every outbound HTTP request/response
-// (to jina/firecrawl, the LLM provider, and VOICEVOX) traced and printed live,
-// and saves the full result (metadata.json + each chapter's WAV) to
-// backend/debug-output/{timestamp}/ for later inspection. This is NOT part of
-// the production server; it's a standalone tool for manually verifying a
-// provider actually works end-to-end without guessing from logs alone.
-//
-// By default it fetches articles live (testWhitelist, same as cmd/demo) so it
-// can verify jina/LLM/TTS connectivity in isolation. Pass -cache to instead
-// select from the articles cache populated by cmd/ingest (same path as the
-// demo/generate, regenerate, and batch/run HTTP handlers), for tracing what a
-// real cache-backed generation actually does.
+// pipeline exactly like the demo/generate, regenerate, and batch/run HTTP
+// handlers (selecting topics from the articles cache populated by
+// cmd/ingest), but with every outbound HTTP request/response (to the LLM
+// provider and VOICEVOX) traced and printed live, and saves the full result
+// (metadata.json + each chapter's WAV) to backend/debug-output/{timestamp}/
+// for later inspection. This is NOT part of the production server; it's a
+// standalone tool for manually verifying a provider actually works
+// end-to-end without guessing from logs alone. Run cmd/ingest first to
+// populate the cache.
 package main
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -29,7 +25,6 @@ import (
 	"backend/internal/domain"
 	"backend/internal/envfile"
 	"backend/internal/pipeline"
-	"backend/internal/providers/fetcher"
 	"backend/internal/providers/llm"
 	"backend/internal/providers/tts"
 	"backend/internal/trace"
@@ -53,15 +48,9 @@ func run(args []string) error {
 		return fmt.Errorf("load .env: %w", err)
 	}
 
-	flagSet := flag.NewFlagSet("gentrace", flag.ContinueOnError)
-	useCache := flagSet.Bool("cache", false, "select articles from the articles cache (cmd/ingest) instead of live-fetching them")
-	if err := flagSet.Parse(args); err != nil {
-		return err
-	}
-
-	tags := normalizedTags(flagSet.Args())
+	tags := normalizedTags(args)
 	if len(tags) == 0 {
-		return fmt.Errorf("provide at least one tag, for example: go run ./cmd/gentrace AI  (or: go run ./cmd/gentrace -cache AI)")
+		return fmt.Errorf("provide at least one tag, for example: go run ./cmd/gentrace AI")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), pipelineTimeout)
@@ -74,39 +63,22 @@ func run(args []string) error {
 	languageModel := llm.FromEnv(tracedClient)
 	speechSynthesizer := tts.NewVoicevoxTTS(tracedClient)
 
-	source := "live"
-	if *useCache {
-		source = "cache"
+	fmt.Fprintf(os.Stderr, "=== gentrace: tags=%s provider=%s ===\n", strings.Join(tags, ","), llmProviderName())
+
+	database, err := openDatabase(ctx)
+	if err != nil {
+		return err
 	}
-	fmt.Fprintf(os.Stderr, "=== gentrace: tags=%s provider=%s source=%s ===\n", strings.Join(tags, ","), llmProviderName(), source)
+	defer database.Close()
 
-	var topics []domain.Topic
-	if *useCache {
-		database, err := openDatabase(ctx)
-		if err != nil {
-			return err
+	topics, err := pipeline.SelectCachedTopics(ctx, database, tags, "")
+	if err != nil {
+		if errors.Is(err, pipeline.ErrArticleCacheEmpty) {
+			return fmt.Errorf("article cache is empty for tags %v; run `go run ./cmd/ingest` first: %w", tags, err)
 		}
-		defer database.Close()
-
-		topics, err = pipeline.SelectCachedTopics(ctx, database, tags, "")
-		if err != nil {
-			if errors.Is(err, pipeline.ErrArticleCacheEmpty) {
-				return fmt.Errorf("article cache is empty for tags %v; run `go run ./cmd/ingest` first: %w", tags, err)
-			}
-			return fmt.Errorf("select cached topics: %w", err)
-		}
-		log.Printf("selected %d cached topics", len(topics))
-	} else {
-		articleFetcher := fetcher.NewJinaFetcher(tracedClient)
-		articles, err := pipeline.FetchArticles(ctx, articleFetcher, tags)
-		if err != nil {
-			return fmt.Errorf("fetch articles: %w", err)
-		}
-		log.Printf("fetched %d articles", len(articles))
-
-		topics = pipeline.DedupeArticles(articles)
-		log.Printf("deduplicated into %d topics", len(topics))
+		return fmt.Errorf("select cached topics: %w", err)
 	}
+	log.Printf("selected %d cached topics", len(topics))
 
 	selected, changeCount, err := pipeline.ScoreAndSelect(ctx, languageModel, topics, defaultLengthMinutes, nil)
 	if err != nil {
@@ -126,7 +98,7 @@ func run(args []string) error {
 	}
 	log.Printf("synthesized %d chapters", len(audioChapters))
 
-	outputDir, err := saveResult(tags, source, greetingText, changeCount, audioChapters, recorder.Entries)
+	outputDir, err := saveResult(tags, greetingText, changeCount, audioChapters, recorder.Entries)
 	if err != nil {
 		return fmt.Errorf("save result: %w", err)
 	}
@@ -184,7 +156,6 @@ type metadataChapter struct {
 type metadata struct {
 	GeneratedAt  time.Time         `json:"generatedAt"`
 	Tags         []string          `json:"tags"`
-	Source       string            `json:"source"`
 	LLMProvider  string            `json:"llmProvider"`
 	GreetingText string            `json:"greetingText"`
 	ChangeCount  int               `json:"changeCount"`
@@ -192,7 +163,7 @@ type metadata struct {
 	HTTPTrace    []trace.Entry     `json:"httpTrace"`
 }
 
-func saveResult(tags []string, source string, greetingText string, changeCount int, chapters []domain.ChapterAudio, entries []trace.Entry) (string, error) {
+func saveResult(tags []string, greetingText string, changeCount int, chapters []domain.ChapterAudio, entries []trace.Entry) (string, error) {
 	timestamp := time.Now().Format("20060102-150405")
 	outputDir := filepath.Join("debug-output", timestamp)
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
@@ -202,7 +173,6 @@ func saveResult(tags []string, source string, greetingText string, changeCount i
 	meta := metadata{
 		GeneratedAt:  time.Now(),
 		Tags:         tags,
-		Source:       source,
 		LLMProvider:  llmProviderName(),
 		GreetingText: greetingText,
 		ChangeCount:  changeCount,
