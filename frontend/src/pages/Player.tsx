@@ -89,6 +89,10 @@ export default function Player() {
         if (cancelled) return;
         if (err instanceof ApiError && err.code === "PROGRAM_NOT_FOUND") {
           setResult({ key, state: { status: "not-ready" } });
+        } else if (err instanceof ApiError && err.code === "USER_NOT_FOUND") {
+          // DBリセット等でuserIdが存在しなくなっている。入口（RootGate）の
+          // 自動復旧に任せる（古いIDを破棄して新規発行→オンボーディングへ）。
+          navigate("/", { replace: true });
         } else {
           setResult({ key, state: { status: "error" } });
         }
@@ -97,7 +101,7 @@ export default function Player() {
     return () => {
       cancelled = true;
     };
-  }, [programIdParam, userId, attempt]);
+  }, [programIdParam, userId, attempt, navigate]);
 
   useEffect(() => {
     return () => {

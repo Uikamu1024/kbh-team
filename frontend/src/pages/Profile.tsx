@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ApiError, getUser, putUserSettings, putUserTags, regenerateLatestProgram } from "@/lib/api";
 import { useUserId } from "@/lib/useUserId";
 import { getDisplayName, setDisplayName as saveDisplayName } from "@/lib/user";
@@ -11,6 +12,7 @@ const LENGTH_OPTIONS = [5, 10, 15] as const;
 type LoadState = { status: "loading" } | { status: "error" } | { status: "ready" };
 
 export default function Profile() {
+  const navigate = useNavigate();
   const { userId } = useUserId();
   const [result, setResult] = useState<{ key: string; status: "ready" | "error" } | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -42,14 +44,21 @@ export default function Profile() {
         isFirstTagsRender.current = true;
         setResult({ key, status: "ready" });
       })
-      .catch(() => {
-        if (!cancelled) setResult({ key, status: "error" });
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.code === "USER_NOT_FOUND") {
+          // DBリセット等でuserIdが存在しなくなっている。入口（RootGate）の
+          // 自動復旧に任せる（古いIDを破棄して新規発行→オンボーディングへ）。
+          navigate("/", { replace: true });
+          return;
+        }
+        setResult({ key, status: "error" });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [userId, attempt]);
+  }, [userId, attempt, navigate]);
 
   const state: LoadState =
     result?.key === requestKey ? { status: result.status } : { status: "loading" };
