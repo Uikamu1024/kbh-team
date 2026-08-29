@@ -14,6 +14,7 @@ import type { Program } from "@/lib/types";
 type LoadState =
   | { status: "loading" }
   | { status: "error" }
+  | { status: "not-ready" }
   | { status: "ready"; program: Program; audioUrl: string; chapterDurations: number[] };
 
 const WAVEFORM_BAR_COUNT = 48;
