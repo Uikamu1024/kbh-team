@@ -21,17 +21,22 @@ Go製のAPIサーバー兼パイプライン実行基盤。フロントエンド
   /cmd
     /server          main.go：HTTP APIサーバーのエントリポイント
     /demo             デモ用軽量パイプラインのCLIエントリポイント
+    /gentrace         記事音声生成のトレース・デバッグ用CLI（外部HTTP通信を記録しながら手動検証する）
   /internal
+    /domain           パイプライン全体で共有するデータ型（Article, Topic, ScoredTopic等）
     /pipeline         収集→正規化→重複除去→重要度判定→台本化→音声化（オーケストレーション）
     /providers        外部サービス実装（差し替え可能にする層。/fetcher, /llm, /tts）
     /db               PostgreSQLクライアント
     /storage          音声ファイルの読み書き（ローカルファイルシステム）
     /api              HTTPハンドラ
+    /envfile          .env読み込み（Goに無い機能を補う自前ローダー）
+    /trace            gentrace用のHTTPリクエスト/レスポンス記録（本番コードからは使われない）
   /data/audio         生成した音声ファイルの保存先（gitignore対象）
   /docs
     api-handlers.md   APIハンドラの実装方針（エンドポイント一覧・バッチ/リセットのロジック）
     tech-stack.md     技術選定理由
     /pipeline         パイプライン各ステップの詳細仕様（実装ファイルと1対1対応）
+    /generation       記事収集の再設計（RSSキャッシュ方式への移行、査読待ち。下記「未決定事項」参照）
 ```
 
 ## プロバイダ層の設計原則
@@ -74,6 +79,9 @@ Phase 1〜3が通るまでPhase 5の機能（設定・履歴・作り直し）�
 | `DATABASE_URL` | PostgreSQL接続文字列 |
 | `AUDIO_STORAGE_PATH` | 生成した音声ファイルの保存先パス |
 | `LLM_API_KEY` | Gemini APIキー |
+| `LLM_PROVIDER` | 使用するLLMプロバイダ（`gemini`（デフォルト）／`openrouter`／`ollama`。`internal/providers/llm/from_env.go`参照） |
+| `OPENROUTER_API_KEY` / `OPENROUTER_MODEL` | OpenRouter利用時のAPIキー・モデル名 |
+| `OLLAMA_API_KEY` / `OLLAMA_MODEL` | Ollama Cloud利用時のAPIキー・モデル名 |
 | `TTS_API_KEY` | TTSプロバイダのAPIキー（VOICEVOXはローカル起動のため通常不要） |
 | `JINA_AI_API_KEY` | jina.ai Reader APIキー |
 | `FIRECRAWL_API_KEY` | firecrawl APIキー（代替プロバイダ用） |
@@ -87,7 +95,7 @@ Phase 1〜3が通るまでPhase 5の機能（設定・履歴・作り直し）�
 - 記事取得元は最初からホワイトリスト化した数サイトに限定し、全サイト対応は行わない
 
 ## 未決定事項
-- ホワイトリスト対象サイトの最終リスト（[01-fetch.md](docs/pipeline/01-fetch.md)参照。現状は`internal/providers/fetcher`内に仮のダミーURLを置いている）
+- **記事収集の再設計（査読待ち）**：現行の`internal/providers/fetcher/jina.go`はタグ名→ダミーURLの固定辞書（`testWhitelist`）に依存する仮実装で、実サイトの記事を動的に収集する仕組みが無い。これを「RSSフィード一覧→収集ジョブ（`cmd/ingest`、新規）が定期的にキャッシュ→生成時はキャッシュSELECTのみ」という方式に置き換える設計を[docs/generation/](docs/generation/)にまとめてあり、現在ユーザーによる査読中。承認され次第、本セクション・[パイプライン概要](#パイプライン概要)・[docs/pipeline/01-fetch.md](docs/pipeline/01-fetch.md)・[02-dedupe.md](docs/pipeline/02-dedupe.md)をこの決定事項として更新する。**着手前に必ず[docs/generation/README.md](docs/generation/README.md)を読むこと**（ホワイトリスト対象サイトの最終リスト自体は、この設計変更後も別途未決定のまま）
 
 ## 決定事項（旧・未決定事項）
 - **Webフレームワーク**：標準`net/http`の`http.ServeMux`（Go 1.22+のパスパターン機能）のみで実装する。軽量ルーターは導入しない
