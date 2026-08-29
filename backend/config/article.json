@@ -3,29 +3,29 @@
     {
       "id": "itmedia-aiplus",
       "url": "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml",
-      "sourceName": "ITmedia AI+",
-      "tags": ["AI", "テクノロジー"],
+      "origin": "itmedia.co.jp",
+      "title": "ITmedia AI+",
       "enabled": true
     },
     {
       "id": "itmedia-news",
       "url": "https://rss.itmedia.co.jp/rss/2.0/news_bursts.xml",
-      "sourceName": "ITmedia NEWS",
-      "tags": ["テクノロジー"],
+      "origin": "itmedia.co.jp",
+      "title": "ITmedia NEWS",
       "enabled": true
     },
     {
       "id": "4gamer",
       "url": "https://www.4gamer.net/rss/index.xml",
-      "sourceName": "4Gamer.net",
-      "tags": ["ゲーム"],
+      "origin": "4gamer.net",
+      "title": "4Gamer.net",
       "enabled": true
     },
     {
       "id": "karasuma-keizai",
       "url": "https://karasuma.keizai.biz/rss.xml",
-      "sourceName": "烏丸経済新聞",
-      "tags": ["京都"],
+      "origin": "keizai.biz",
+      "title": "烏丸経済新聞",
       "enabled": true
     }
   ]
