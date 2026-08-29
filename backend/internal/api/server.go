@@ -35,11 +35,15 @@ func New(database *db.DB, fileStorage *storage.Storage) *Server {
 	if voicevoxURL == "" {
 		voicevoxURL = defaultVoicevoxURL
 	}
+	var languageModel llm.LLM = llm.NewGeminiLLM(nil)
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("LLM_PROVIDER")), "openrouter") {
+		languageModel = llm.NewOpenRouterLLM(nil)
+	}
 	return &Server{
 		database:          database,
 		storage:           fileStorage,
 		articleFetcher:    fetcher.NewJinaFetcher(nil),
-		languageModel:     llm.NewGeminiLLM(nil),
+		languageModel:     languageModel,
 		speechSynthesizer: tts.NewVoicevoxTTS(nil),
 		generatingUsers:   make(map[string]struct{}),
 		voicevoxURL:       voicevoxURL,
