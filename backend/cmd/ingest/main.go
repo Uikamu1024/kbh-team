@@ -15,7 +15,6 @@ import (
 	"backend/internal/envfile"
 	"backend/internal/feedconfig"
 	"backend/internal/ingest"
-	"backend/internal/pipeline"
 	"backend/internal/providers/fetcher"
 	"backend/internal/providers/llm"
 )
@@ -32,6 +31,15 @@ type feedStats struct {
 	newItems      int
 	bodySucceeded int
 	bodyFailed    int
+}
+
+// collectedArticle is one newly-fetched, metadata-extracted article awaiting
+// duplicate resolution and storage (backend/docs/generation/02-ingestion.md
+// steps 4-5 done; steps 6-8 still pending, done once for the whole run in
+// resolveAndStore).
+type collectedArticle struct {
+	feedID  string
+	article domain.Article
 }
 
 func main() {
@@ -78,40 +86,56 @@ func run() error {
 	defer lock.Release()
 
 	articleFetcher := fetcher.NewJinaFetcher(&http.Client{Timeout: 30 * time.Second})
-	languageModel := llm.FromEnv(&http.Client{Timeout: 30 * time.Second})
+	languageModel := llm.FromEnv(&http.Client{Timeout: 60 * time.Second})
 	if articleFetcher.MockMode() {
 		log.Printf("JINA_AI_API_KEY is not set; mock article bodies will not be cached")
 	}
 	rssClient := &http.Client{Timeout: 30 * time.Second}
+
+	ctx := context.Background()
+	collected := make([]collectedArticle, 0)
 	for _, feed := range config.EnabledFeeds() {
-		stats := ingestFeed(context.Background(), database, rssClient, articleFetcher, languageModel, feed)
+		feedArticles, stats := ingestFeed(ctx, database, rssClient, articleFetcher, languageModel, feed)
+		collected = append(collected, feedArticles...)
 		log.Printf("feed=%s rss=%d new=%d body_success=%d body_failed=%d", feed.ID, stats.rssItems, stats.newItems, stats.bodySucceeded, stats.bodyFailed)
 	}
-	log.Printf("completed in %s", time.Since(startedAt).Round(time.Millisecond))
+
+	if err := resolveAndStore(ctx, database, languageModel, collected); err != nil {
+		return fmt.Errorf("resolve and store collected articles: %w", err)
+	}
+
+	log.Printf("completed in %s: collected=%d", time.Since(startedAt).Round(time.Millisecond), len(collected))
 	return nil
 }
 
-func ingestFeed(ctx context.Context, database *db.DB, rssClient *http.Client, articleFetcher *fetcher.JinaFetcher, languageModel llm.LLM, feed feedconfig.Feed) feedStats {
+// ingestFeed fetches one feed's fresh, new RSS items, retrieves each body,
+// and extracts LLM metadata for it (backend/docs/generation/02-ingestion.md
+// steps 2-5). Duplicate detection and storage are not done here: they happen
+// once for the whole run, across every feed, in resolveAndStore (step 6
+// requires a single batched LLM call per run, not per feed or per article).
+func ingestFeed(ctx context.Context, database *db.DB, rssClient *http.Client, articleFetcher *fetcher.JinaFetcher, languageModel llm.LLM, feed feedconfig.Feed) ([]collectedArticle, feedStats) {
 	stats := feedStats{}
+	collected := make([]collectedArticle, 0)
+
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, feed.URL, nil)
 	if err != nil {
 		log.Printf("feed=%s create RSS request failed: %v", feed.ID, err)
-		return stats
+		return collected, stats
 	}
 	response, err := rssClient.Do(request)
 	if err != nil {
 		log.Printf("feed=%s fetch RSS failed: %v", feed.ID, err)
-		return stats
+		return collected, stats
 	}
 	defer response.Body.Close()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		log.Printf("feed=%s fetch RSS returned status %d", feed.ID, response.StatusCode)
-		return stats
+		return collected, stats
 	}
 	items, err := ingest.ParseRSS(response.Body)
 	if err != nil {
 		log.Printf("feed=%s parse RSS failed: %v", feed.ID, err)
-		return stats
+		return collected, stats
 	}
 	stats.rssItems = len(items)
 	if len(items) > maxItemsPerFeed {
@@ -127,15 +151,15 @@ func ingestFeed(ctx context.Context, database *db.DB, rssClient *http.Client, ar
 			continue
 		}
 
-		existing, exists, err := database.FindArticleBySourceURL(ctx, item.Link)
+		exists, err := database.ArticleExists(ctx, item.Link)
 		if err != nil {
-			log.Printf("feed=%s find article %q failed: %v", feed.ID, item.Link, err)
+			log.Printf("feed=%s check existing article %q failed: %v", feed.ID, item.Link, err)
 			continue
 		}
 		if exists {
-			if err := database.MergeCachedArticleTags(ctx, existing, feed.Tags); err != nil {
-				log.Printf("feed=%s merge tags for %q failed: %v", feed.ID, item.Link, err)
-			}
+			// Tags are no longer feed-decided, so a repeat sighting of an
+			// already-cached URL has nothing to merge; just skip it
+			// (backend/docs/generation/02-ingestion.md step 3).
 			continue
 		}
 
@@ -151,6 +175,7 @@ func ingestFeed(ctx context.Context, database *db.DB, rssClient *http.Client, ar
 		stats.bodySucceeded++
 		log.Printf("feed=%s fetched body %d/%d in %s: %s", feed.ID, stats.newItems, len(items), time.Since(fetchStartedAt).Round(time.Millisecond), item.Link)
 		if articleFetcher.MockMode() {
+			// Mock bodies are never cached (backend/docs/generation/02-ingestion.md step 4).
 			continue
 		}
 		if utf8.RuneCountInString(fetched.Body) < minimumBodyRunes {
@@ -165,88 +190,70 @@ func ingestFeed(ctx context.Context, database *db.DB, rssClient *http.Client, ar
 		if item.HasPublishedAt {
 			article.PublishedAt = item.PublishedAt
 		}
-		article.SourceName = feed.SourceName
+		article.SourceName = feed.Title
 		article.SourceURL = item.Link
 
-		recentArticles, err := database.RecentCachedArticles(ctx)
+		metadata, err := languageModel.ExtractMetadata(ctx, article.Title, article.Body)
 		if err != nil {
-			log.Printf("feed=%s list duplicate candidates for %q failed: %v", feed.ID, item.Link, err)
+			log.Printf("feed=%s extract metadata for %q failed: %v", feed.ID, item.Link, err)
 			continue
 		}
-		matchedGroupID := bestMatchingGroupID(article.Title, recentArticles)
-		importanceTopic, shouldScore := topicForPrimaryArticle(article, matchedGroupID, recentArticles)
-		importanceScore := 0
-		if shouldScore {
-			score, _, err := languageModel.ScoreTopic(ctx, importanceTopic, nil)
-			if err != nil {
-				log.Printf("feed=%s score article %q failed: %v", feed.ID, item.Link, err)
-				continue
-			}
-			importanceScore = score
+		article.ShortenedTitle = metadata.ShortenedTitle
+		article.Author = metadata.Author
+		article.AbbreviatedBody = metadata.AbbreviatedBody
+		article.Tags = metadata.Tags
+		if metadata.PublishedAt != nil {
+			// The LLM confirmed a publish date from the body itself; prefer
+			// it over the RSS pubDate (backend/docs/generation/02-ingestion.md step 5).
+			article.PublishedAt = *metadata.PublishedAt
 		}
+
+		collected = append(collected, collectedArticle{feedID: feed.ID, article: article})
+	}
+	return collected, stats
+}
+
+// resolveAndStore runs the batched LLM duplicate-detection call once for
+// every article collected across every feed this run
+// (backend/docs/generation/02-ingestion.md step 6), then stores each one
+// under its resolved topic_group_id (steps 7-8).
+func resolveAndStore(ctx context.Context, database *db.DB, languageModel llm.LLM, collected []collectedArticle) error {
+	if len(collected) == 0 {
+		return nil
+	}
+
+	existingGroups, err := database.RecentPrimaryTopicGroups(ctx)
+	if err != nil {
+		return fmt.Errorf("list existing topic groups: %w", err)
+	}
+
+	newTitles := make([]string, len(collected))
+	for index, item := range collected {
+		newTitles[index] = item.article.Title
+	}
+
+	assignments, err := languageModel.DetectDuplicates(ctx, newTitles, existingGroups)
+	if err != nil {
+		return fmt.Errorf("detect duplicates: %w", err)
+	}
+	if len(assignments) != len(collected) {
+		return fmt.Errorf("duplicate detection returned %d assignments for %d articles", len(assignments), len(collected))
+	}
+
+	for index, item := range collected {
 		articleID, err := db.NewUUID()
 		if err != nil {
-			log.Printf("feed=%s generate article ID for %q failed: %v", feed.ID, item.Link, err)
+			log.Printf("feed=%s generate article ID for %q failed: %v", item.feedID, item.article.SourceURL, err)
 			continue
 		}
 		if err := database.StoreIngestedArticle(ctx, db.CachedArticle{
-			ID:              articleID,
-			FeedID:          feed.ID,
-			ImportanceScore: importanceScore,
-			Article: domain.Article{
-				Title:       article.Title,
-				Body:        article.Body,
-				PublishedAt: article.PublishedAt,
-				SourceName:  article.SourceName,
-				SourceURL:   article.SourceURL,
-			},
-			Tags: feed.Tags,
-		}, matchedGroupID); err != nil {
-			log.Printf("feed=%s cache article %q failed: %v", feed.ID, item.Link, err)
+			ID:           articleID,
+			FeedID:       item.feedID,
+			TopicGroupID: assignments[index].TopicGroupID,
+			Article:      item.article,
+		}); err != nil {
+			log.Printf("feed=%s cache article %q failed: %v", item.feedID, item.article.SourceURL, err)
 		}
 	}
-	return stats
-}
-
-// topicForPrimaryArticle reports whether article will become its group's
-// primary article when stored. Only primary articles need an importance score.
-func topicForPrimaryArticle(article domain.Article, matchedGroupID string, recentArticles []db.CachedArticle) (domain.Topic, bool) {
-	if matchedGroupID == "" {
-		return domain.Topic{Primary: article, RelatedCount: 1}, true
-	}
-
-	relatedCount := 1 // Include the article that is about to be stored.
-	primaryBody := ""
-	foundPrimary := false
-	for _, cached := range recentArticles {
-		if cached.TopicGroupID != matchedGroupID {
-			continue
-		}
-		relatedCount++
-		if cached.IsPrimary {
-			primaryBody = cached.Article.Body
-			foundPrimary = true
-		}
-	}
-	if !foundPrimary || utf8.RuneCountInString(article.Body) > utf8.RuneCountInString(primaryBody) {
-		return domain.Topic{
-			Primary:      article,
-			RelatedCount: relatedCount,
-			TopicGroupID: matchedGroupID,
-		}, true
-	}
-	return domain.Topic{}, false
-}
-
-func bestMatchingGroupID(title string, articles []db.CachedArticle) string {
-	bestSimilarity := 0.0
-	bestGroupID := ""
-	for _, article := range articles {
-		similarity := pipeline.TitleSimilarity(title, article.Article.Title)
-		if similarity >= pipeline.TitleSimilarityThreshold && similarity > bestSimilarity {
-			bestSimilarity = similarity
-			bestGroupID = article.TopicGroupID
-		}
-	}
-	return bestGroupID
+	return nil
 }

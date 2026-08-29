@@ -15,14 +15,15 @@ import (
 const ingestAdvisoryLockID int64 = 734_128_091
 
 // CachedArticle is an articles-table row used during ingestion.
+// TopicGroupID must already be resolved by the caller (backend/docs/generation/02-ingestion.md
+// step 6, LLM-based duplicate detection) before calling StoreIngestedArticle;
+// unlike the previous bigram-similarity design, this package no longer picks
+// topic_group_id itself.
 type CachedArticle struct {
-	ID              string
-	FeedID          string
-	TopicGroupID    string
-	IsPrimary       bool
-	ImportanceScore int
-	Article         domain.Article
-	Tags            []string
+	ID           string
+	FeedID       string
+	TopicGroupID string
+	Article      domain.Article
 }
 
 // IngestLock holds the dedicated PostgreSQL connection for an ingestion run.
@@ -60,130 +61,100 @@ func (l *IngestLock) Release() {
 	l.connection = nil
 }
 
-// FindArticleBySourceURL returns a previously cached article for an exact URL.
-func (d *DB) FindArticleBySourceURL(ctx context.Context, sourceURL string) (CachedArticle, bool, error) {
-	article, err := scanCachedArticle(d.pool.QueryRow(ctx, `
-		SELECT id::text, feed_id, topic_group_id::text, is_primary, title, body,
-		       published_at, source_name, source_url, tags, COALESCE(importance_score, 0)
-		FROM articles
-		WHERE source_url = $1`, sourceURL))
-	if err == nil {
-		return article, true, nil
+// ArticleExists reports whether an article with this exact source URL is
+// already cached. On a match, backend/docs/generation/02-ingestion.md step 3
+// says to simply skip the URL (tags are no longer feed-decided, so there is
+// no tag-merge step on a repeat sighting).
+func (d *DB) ArticleExists(ctx context.Context, sourceURL string) (bool, error) {
+	var exists bool
+	if err := d.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM articles WHERE source_url = $1)`, sourceURL).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check existing article: %w", err)
 	}
-	if err == pgx.ErrNoRows {
-		return CachedArticle{}, false, nil
-	}
-	return CachedArticle{}, false, fmt.Errorf("find article by source URL: %w", err)
+	return exists, nil
 }
 
-// MergeCachedArticleTags adds feed tags to an existing article and its
-// group's primary article in one transaction.
-func (d *DB) MergeCachedArticleTags(ctx context.Context, article CachedArticle, tags []string) error {
-	if len(tags) == 0 {
-		return nil
-	}
-	tx, err := d.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin article tag merge: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	merged := unionTags(article.Tags, tags)
-	if _, err := tx.Exec(ctx, `UPDATE articles SET tags = $2::text[] WHERE id = $1::uuid`, article.ID, merged); err != nil {
-		return fmt.Errorf("update cached article tags: %w", err)
-	}
-	var primaryTags []string
-	if err := tx.QueryRow(ctx, `
-		SELECT tags FROM articles
-		WHERE topic_group_id = $1::uuid AND is_primary = true
-		FOR UPDATE`, article.TopicGroupID).Scan(&primaryTags); err != nil {
-		return fmt.Errorf("find primary article for tag merge: %w", err)
-	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE articles SET tags = $2::text[]
-		WHERE topic_group_id = $1::uuid AND is_primary = true`, article.TopicGroupID, unionTags(primaryTags, tags)); err != nil {
-		return fmt.Errorf("update primary article tags: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit article tag merge: %w", err)
-	}
-	return nil
-}
-
-// RecentCachedArticles returns every article that may take part in duplicate
-// matching. The caller compares titles, regardless of tags.
-func (d *DB) RecentCachedArticles(ctx context.Context) ([]CachedArticle, error) {
+// RecentPrimaryTopicGroups returns the title and topic_group_id of every
+// primary article published within the last 14 days, the candidate list
+// offered to the batched LLM duplicate-detection call
+// (backend/docs/generation/02-ingestion.md step 6).
+func (d *DB) RecentPrimaryTopicGroups(ctx context.Context) ([]domain.ExistingTopicGroup, error) {
 	rows, err := d.pool.Query(ctx, `
-		SELECT id::text, feed_id, topic_group_id::text, is_primary, title, body,
-		       published_at, source_name, source_url, tags, COALESCE(importance_score, 0)
+		SELECT topic_group_id::text, title
 		FROM articles
-		WHERE published_at >= now() - interval '14 days'`)
+		WHERE is_primary = true
+		  AND published_at >= now() - interval '14 days'`)
 	if err != nil {
-		return nil, fmt.Errorf("list recent cached articles: %w", err)
+		return nil, fmt.Errorf("list recent primary topic groups: %w", err)
 	}
 	defer rows.Close()
 
-	articles := make([]CachedArticle, 0)
+	groups := make([]domain.ExistingTopicGroup, 0)
 	for rows.Next() {
-		article, err := scanCachedArticle(rows)
-		if err != nil {
-			return nil, err
+		var group domain.ExistingTopicGroup
+		if err := rows.Scan(&group.TopicGroupID, &group.Title); err != nil {
+			return nil, fmt.Errorf("scan recent primary topic group: %w", err)
 		}
-		articles = append(articles, article)
+		groups = append(groups, group)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate recent cached articles: %w", err)
+		return nil, fmt.Errorf("iterate recent primary topic groups: %w", err)
 	}
-	return articles, nil
+	return groups, nil
 }
 
-// StoreIngestedArticle saves a new article and updates the matched group's
-// primary article and tag union atomically. An empty matchedGroupID starts a
-// new topic group using article.ID.
-func (d *DB) StoreIngestedArticle(ctx context.Context, article CachedArticle, matchedGroupID string) error {
+// StoreIngestedArticle saves a new article under article.TopicGroupID
+// (already resolved by the caller via LLM duplicate detection) and updates
+// that group's primary article and tag union atomically
+// (backend/docs/generation/02-ingestion.md steps 7-8). Whether this article
+// becomes the group's primary is decided here: if no primary exists yet for
+// this topic_group_id (a brand-new group, or the first of a batch of new
+// articles the LLM grouped together), this article becomes primary; if a
+// primary already exists, this article becomes primary only if its body is
+// longer.
+func (d *DB) StoreIngestedArticle(ctx context.Context, article CachedArticle) error {
 	tx, err := d.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin article insert: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	groupID := matchedGroupID
-	primary := matchedGroupID == ""
-	if groupID == "" {
-		groupID = article.ID
+	var existingPrimaryID, existingPrimaryBody string
+	err = tx.QueryRow(ctx, `
+		SELECT id::text, body FROM articles
+		WHERE topic_group_id = $1::uuid AND is_primary = true
+		FOR UPDATE`, article.TopicGroupID).Scan(&existingPrimaryID, &existingPrimaryBody)
+	hasExistingPrimary := true
+	if err == pgx.ErrNoRows {
+		hasExistingPrimary = false
+	} else if err != nil {
+		return fmt.Errorf("find group primary: %w", err)
 	}
-	article.TopicGroupID = groupID
+	primary := !hasExistingPrimary
+
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO articles (
-			id, feed_id, topic_group_id, is_primary, title, body, published_at,
-			source_name, source_url, tags, importance_score
+			id, feed_id, topic_group_id, is_primary, title, shortened_title, author,
+			body, abbreviated_body, published_at, source_name, source_url, tags
 		) VALUES (
-			$1::uuid, $2, $3::uuid, $4, $5, $6, $7, $8, $9, $10::text[], NULLIF($11, 0)
-		)`, article.ID, article.FeedID, groupID, primary, article.Article.Title,
-		article.Article.Body, article.Article.PublishedAt, article.Article.SourceName,
-		article.Article.SourceURL, article.Tags, article.ImportanceScore); err != nil {
+			$1::uuid, $2, $3::uuid, $4, $5, NULLIF($6, ''), NULLIF($7, ''),
+			$8, NULLIF($9, ''), $10, $11, $12, $13::text[]
+		)`, article.ID, article.FeedID, article.TopicGroupID, primary, article.Article.Title,
+		article.Article.ShortenedTitle, article.Article.Author, article.Article.Body,
+		article.Article.AbbreviatedBody, article.Article.PublishedAt, article.Article.SourceName,
+		article.Article.SourceURL, article.Article.Tags); err != nil {
 		return fmt.Errorf("insert cached article: %w", err)
 	}
 
-	if !primary {
-		var primaryID, primaryBody string
-		if err := tx.QueryRow(ctx, `
-			SELECT id::text, body FROM articles
-			WHERE topic_group_id = $1::uuid AND is_primary = true
-			FOR UPDATE`, groupID).Scan(&primaryID, &primaryBody); err != nil {
-			return fmt.Errorf("find matched group primary: %w", err)
+	if hasExistingPrimary && utf8.RuneCountInString(article.Article.Body) > utf8.RuneCountInString(existingPrimaryBody) {
+		if _, err := tx.Exec(ctx, `UPDATE articles SET is_primary = false WHERE id = $1::uuid`, existingPrimaryID); err != nil {
+			return fmt.Errorf("clear previous group primary: %w", err)
 		}
-		if utf8.RuneCountInString(article.Article.Body) > utf8.RuneCountInString(primaryBody) {
-			if _, err := tx.Exec(ctx, `UPDATE articles SET is_primary = false WHERE id = $1::uuid`, primaryID); err != nil {
-				return fmt.Errorf("clear previous group primary: %w", err)
-			}
-			if _, err := tx.Exec(ctx, `UPDATE articles SET is_primary = true WHERE id = $1::uuid`, article.ID); err != nil {
-				return fmt.Errorf("set replacement group primary: %w", err)
-			}
+		if _, err := tx.Exec(ctx, `UPDATE articles SET is_primary = true WHERE id = $1::uuid`, article.ID); err != nil {
+			return fmt.Errorf("set replacement group primary: %w", err)
 		}
 	}
 
-	rows, err := tx.Query(ctx, `SELECT tags FROM articles WHERE topic_group_id = $1::uuid`, groupID)
+	rows, err := tx.Query(ctx, `SELECT tags FROM articles WHERE topic_group_id = $1::uuid`, article.TopicGroupID)
 	if err != nil {
 		return fmt.Errorf("read group tags: %w", err)
 	}
@@ -203,7 +174,7 @@ func (d *DB) StoreIngestedArticle(ctx context.Context, article CachedArticle, ma
 	rows.Close()
 	if _, err := tx.Exec(ctx, `
 		UPDATE articles SET tags = $2::text[]
-		WHERE topic_group_id = $1::uuid AND is_primary = true`, groupID, allTags); err != nil {
+		WHERE topic_group_id = $1::uuid AND is_primary = true`, article.TopicGroupID, allTags); err != nil {
 		return fmt.Errorf("update group primary tags: %w", err)
 	}
 
@@ -265,27 +236,6 @@ func (d *DB) SelectCachedTopics(ctx context.Context, tags []string, userID strin
 		return nil, fmt.Errorf("iterate cached topics: %w", err)
 	}
 	return topics, nil
-}
-
-func scanCachedArticle(row pgx.Row) (CachedArticle, error) {
-	var article CachedArticle
-	err := row.Scan(
-		&article.ID,
-		&article.FeedID,
-		&article.TopicGroupID,
-		&article.IsPrimary,
-		&article.Article.Title,
-		&article.Article.Body,
-		&article.Article.PublishedAt,
-		&article.Article.SourceName,
-		&article.Article.SourceURL,
-		&article.Tags,
-		&article.ImportanceScore,
-	)
-	if err != nil {
-		return CachedArticle{}, err
-	}
-	return article, nil
 }
 
 func unionTags(left, right []string) []string {

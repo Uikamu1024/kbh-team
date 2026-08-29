@@ -13,13 +13,16 @@ type Config struct {
 	Feeds []Feed `json:"feeds"`
 }
 
-// Feed describes one RSS source and the application tags it supplies.
+// Feed describes one RSS source (backend/docs/generation/01-feed-config.md).
+// Tags are no longer configured per-feed: the ingest job's LLM classifies
+// tags from each article's own content instead
+// (backend/docs/generation/02-ingestion.md step 5).
 type Feed struct {
-	ID         string   `json:"id"`
-	URL        string   `json:"url"`
-	SourceName string   `json:"sourceName"`
-	Tags       []string `json:"tags"`
-	Enabled    bool     `json:"enabled"`
+	ID      string `json:"id"`
+	URL     string `json:"url"`
+	Origin  string `json:"origin"`
+	Title   string `json:"title"`
+	Enabled bool   `json:"enabled"`
 }
 
 // Load reads and validates an article.json feed configuration.
@@ -40,16 +43,8 @@ func Load(path string) (Config, error) {
 		if strings.TrimSpace(feed.URL) == "" {
 			return Config{}, fmt.Errorf("feed %q: url is required", feed.ID)
 		}
-		if strings.TrimSpace(feed.SourceName) == "" {
-			return Config{}, fmt.Errorf("feed %q: sourceName is required", feed.ID)
-		}
-		if len(feed.Tags) == 0 {
-			return Config{}, fmt.Errorf("feed %q: at least one tag is required", feed.ID)
-		}
-		for tagIndex, tag := range feed.Tags {
-			if strings.TrimSpace(tag) == "" {
-				return Config{}, fmt.Errorf("feed %q: tag %d is empty", feed.ID, tagIndex)
-			}
+		if strings.TrimSpace(feed.Title) == "" {
+			return Config{}, fmt.Errorf("feed %q: title is required", feed.ID)
 		}
 	}
 	return config, nil

@@ -104,17 +104,6 @@ func titleSimilarity(left, right string) float64 {
 	return float64(intersection) / float64(union)
 }
 
-// TitleSimilarity returns the character-bigram Jaccard similarity used by
-// DedupeArticles. The ingestion job uses the same threshold and algorithm
-// when comparing a new article with the cached article groups.
-func TitleSimilarity(left, right string) float64 {
-	return titleSimilarity(left, right)
-}
-
-// TitleSimilarityThreshold is the minimum similarity at which two article
-// titles are considered to cover the same topic.
-const TitleSimilarityThreshold = titleSimilarityThreshold
-
 func normalizeTitle(title string) string {
 	var normalized strings.Builder
 	for _, r := range strings.ToLower(title) {
