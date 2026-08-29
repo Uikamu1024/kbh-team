@@ -11,6 +11,11 @@ import (
 	"backend/internal/providers/tts"
 )
 
+const (
+	sameSpeakerPauseSec   = 0.22
+	speakerChangePauseSec = 0.32
+)
+
 // SynthesizeChapters adds the greeting to the position-zero chapter for
 // synthesis, then joins each chapter's line audio into one WAV file.
 func SynthesizeChapters(ctx context.Context, synthesizer tts.TTS, greetingText string, chapters []domain.ChapterDraft) ([]domain.ChapterAudio, error) {
@@ -44,6 +49,10 @@ func SynthesizeChapters(ctx context.Context, synthesizer tts.TTS, greetingText s
 			}
 			lineAudio = append(lineAudio, audio)
 		}
+		lineAudio, err := addNaturalPauses(lineAudio, lines)
+		if err != nil {
+			return nil, fmt.Errorf("add pauses for chapter %d: %w", chapterIndex, err)
+		}
 
 		audio, format, err := concatenateWAVs(lineAudio)
 		if err != nil {
@@ -56,6 +65,36 @@ func SynthesizeChapters(ctx context.Context, synthesizer tts.TTS, greetingText s
 		})
 	}
 	return result, nil
+}
+
+func addNaturalPauses(wavs [][]byte, lines []domain.Line) ([][]byte, error) {
+	if len(wavs) < 2 || len(wavs) != len(lines) {
+		return wavs, nil
+	}
+
+	format, err := parseWAV(wavs[0])
+	if err != nil {
+		return nil, err
+	}
+	result := make([][]byte, 0, len(wavs)*2-1)
+	for index, audio := range wavs {
+		if index > 0 {
+			pauseSec := sameSpeakerPauseSec
+			if lines[index-1].Speaker != lines[index].Speaker {
+				pauseSec = speakerChangePauseSec
+			}
+			result = append(result, silenceWAV(format, pauseSec))
+		}
+		result = append(result, audio)
+	}
+	return result, nil
+}
+
+func silenceWAV(format wavFormat, seconds float64) []byte {
+	sampleCount := int(float64(format.sampleRate) * seconds)
+	data := make([]byte, sampleCount*int(format.blockAlign))
+	format.data = data
+	return encodeWAV(format, data)
 }
 
 type wavFormat struct {
