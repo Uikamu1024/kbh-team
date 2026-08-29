@@ -48,7 +48,7 @@ const maxMalformedJSONRetries = 2
 // Without an API key, a deterministic local mock is used instead.
 func (o *OpenAICompatibleLLM) ScoreTopic(ctx context.Context, topic domain.Topic, previousTopics []string) (int, bool, error) {
 	if o == nil || strings.TrimSpace(o.apiKey) == "" {
-		return mockScoreTopic(topic, previousTopics), mockIsNew(topic, previousTopics), nil
+		return mockScoreTopic(topic, previousTopics), IsTopicNew(topic, previousTopics), nil
 	}
 
 	prompt, err := buildScorePrompt(topic, previousTopics)

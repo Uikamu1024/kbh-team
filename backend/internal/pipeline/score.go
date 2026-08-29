@@ -50,6 +50,11 @@ func ScoreAndSelect(ctx context.Context, scorer llm.LLM, topics []domain.Topic, 
 		})
 	}
 
+	selected, changeCount := rankAndSelectTopics(scored, lengthMinutes)
+	return selected, changeCount, nil
+}
+
+func rankAndSelectTopics(scored []domain.ScoredTopic, lengthMinutes int) ([]domain.ScoredTopic, int) {
 	sort.SliceStable(scored, func(i, j int) bool {
 		if scored[i].ImportanceScore != scored[j].ImportanceScore {
 			return scored[i].ImportanceScore > scored[j].ImportanceScore
@@ -65,7 +70,7 @@ func ScoreAndSelect(ctx context.Context, scorer llm.LLM, topics []domain.Topic, 
 			changeCount++
 		}
 	}
-	return selected, changeCount, nil
+	return selected, changeCount
 }
 
 func selectTopics(scored []domain.ScoredTopic, lengthMinutes int) []domain.ScoredTopic {

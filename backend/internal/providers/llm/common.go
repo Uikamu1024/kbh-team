@@ -108,8 +108,11 @@ func parseScriptResult(apiResponse string, selected []domain.ScoredTopic, provid
 	if err := json.Unmarshal([]byte(stripJSONFences(apiResponse)), &result); err != nil {
 		return "", nil, fmt.Errorf("decode %s script response: %w", provider, err)
 	}
-	if len(result.Chapters) != len(selected) {
+	if len(result.Chapters) < len(selected) {
 		return "", nil, fmt.Errorf("%s returned %d chapters for %d selected topics", provider, len(result.Chapters), len(selected))
+	}
+	if len(result.Chapters) > len(selected) {
+		result.Chapters = result.Chapters[:len(selected)]
 	}
 
 	chapters := make([]domain.ChapterDraft, len(selected))
@@ -151,7 +154,9 @@ func mockScoreTopic(topic domain.Topic, _ []string) int {
 	return score
 }
 
-func mockIsNew(topic domain.Topic, previousTopics []string) bool {
+// IsTopicNew reports whether a topic title is absent from the previous
+// program after case and punctuation normalization.
+func IsTopicNew(topic domain.Topic, previousTopics []string) bool {
 	normalizedTitle := normalizeTopicTitle(topic.Primary.Title)
 	if normalizedTitle == "" {
 		return true

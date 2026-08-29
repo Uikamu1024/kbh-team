@@ -35,7 +35,7 @@ func NewGeminiLLM(client *http.Client) *GeminiLLM {
 // Without LLM_API_KEY, a small deterministic rule set is used instead.
 func (g *GeminiLLM) ScoreTopic(ctx context.Context, topic domain.Topic, previousTopics []string) (score int, isNew bool, err error) {
 	if strings.TrimSpace(os.Getenv("LLM_API_KEY")) == "" {
-		return mockScoreTopic(topic, previousTopics), mockIsNew(topic, previousTopics), nil
+		return mockScoreTopic(topic, previousTopics), IsTopicNew(topic, previousTopics), nil
 	}
 
 	requestBody, err := buildScoreRequest(topic, previousTopics)

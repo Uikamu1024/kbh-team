@@ -45,8 +45,11 @@ CREATE TABLE IF NOT EXISTS articles (
   source_name TEXT NOT NULL,
   source_url TEXT NOT NULL UNIQUE,
   tags TEXT[] NOT NULL DEFAULT '{}',
+  importance_score INT,
   fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS importance_score INT;
 
 CREATE INDEX IF NOT EXISTS articles_topic_group_id_idx ON articles (topic_group_id);
 CREATE INDEX IF NOT EXISTS articles_tags_gin_idx ON articles USING GIN (tags);
