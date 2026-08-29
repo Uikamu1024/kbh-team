@@ -33,3 +33,29 @@ CREATE INDEX IF NOT EXISTS programs_user_created_at_idx
 
 CREATE INDEX IF NOT EXISTS chapters_program_position_idx
   ON chapters (program_id, position);
+
+CREATE TABLE IF NOT EXISTS articles (
+  id UUID PRIMARY KEY,
+  feed_id TEXT NOT NULL,
+  topic_group_id UUID NOT NULL,
+  is_primary BOOLEAN NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  published_at TIMESTAMPTZ NOT NULL,
+  source_name TEXT NOT NULL,
+  source_url TEXT NOT NULL UNIQUE,
+  tags TEXT[] NOT NULL DEFAULT '{}',
+  fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS articles_topic_group_id_idx ON articles (topic_group_id);
+CREATE INDEX IF NOT EXISTS articles_tags_gin_idx ON articles USING GIN (tags);
+CREATE UNIQUE INDEX IF NOT EXISTS articles_one_primary_per_group_idx
+  ON articles (topic_group_id) WHERE is_primary;
+
+CREATE TABLE IF NOT EXISTS user_seen_topics (
+  user_id UUID NOT NULL REFERENCES users(id),
+  topic_group_id UUID NOT NULL,
+  seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, topic_group_id)
+);

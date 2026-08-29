@@ -16,6 +16,7 @@ type Article struct {
 type Topic struct {
 	Primary      Article
 	RelatedCount int
+	TopicGroupID string
 }
 
 // ScoredTopic is a topic annotated with its importance and program position.
