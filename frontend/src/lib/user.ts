@@ -17,6 +17,12 @@ function setStoredUserId(userId: string): void {
   window.localStorage.setItem(USER_ID_KEY, userId);
 }
 
+// DBリセット等でサーバー側からuserIdが消え、USER_NOT_FOUNDになった場合に
+// 古いIDを破棄して再発行し直すために使う（RootGate参照）。
+export function clearStoredUserId(): void {
+  window.localStorage.removeItem(USER_ID_KEY);
+}
+
 // ensureUserId() の呼び出し同士でPOST /api/usersが競合しないようにする進行中のPromise。
 // StrictModeのeffect二重実行や、複数コンポーネントがほぼ同時にマウントされるケースで
 // localStorageへの書き込みが完了する前に2回目の呼び出しが来ると、ガードが無いと
