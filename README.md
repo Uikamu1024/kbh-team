@@ -133,9 +133,9 @@ npm run dev
 
 | 役割 | 名前 | GitHub |
 | --- | --- | --- |
-|  | Seiya |  |
-|  | Sorato |  |
-|  | Ryuuki |  |
+| フロントエンド | Seiya | Uikamu1024 |
+| バックエンド| Sorato | wew-ptr |
+| デザイン | Ryuuki | kotoni1030 |
 
 ---
 
