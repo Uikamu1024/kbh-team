@@ -106,7 +106,6 @@
   const miniPlayerOpen = $("#miniPlayerOpen");
   const miniPlayerToggle = $("#miniPlayerToggle");
   const toastEl = $("#toast");
-  const resetOnboardingBtn = $("#resetOnboardingBtn");
 
   // ===== 画面遷移 =====
   function showScreen(name) {
@@ -129,10 +128,6 @@
   miniPlayerToggle.addEventListener("click", (event) => {
     event.stopPropagation();
     togglePlay();
-  });
-  resetOnboardingBtn.addEventListener("click", () => {
-    localStorage.removeItem(ONBOARDING_STORAGE_KEY);
-    location.reload();
   });
 
   // ===== 初回設定 =====
