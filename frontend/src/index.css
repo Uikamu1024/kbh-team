@@ -1,7 +1,31 @@
 @import "tailwindcss";
 
-/* デザイン方針: frontend/docs/design.md（Spotify参考・ダークテーマ基調） */
+/* デザイン方針: mock/main（ライトテーマ・オレンジ×深緑のツートーン）をデフォルトに、
+   旧ダークテーマ（黒背景・緑アクセント）を選択式で残す。切り替えはプロフィール画面。
+   実際の値の切り替えは <html data-theme="light|dark"> で行う（src/lib/theme.ts）。 */
 :root {
+  --bg: #f8faf9;
+  --bg-elevated: #ffffff;
+  --bg-elevated-2: #edf3f0;
+  --bg-elevated-3: #d6e3dc;
+  --text-primary: #26332d;
+  --text-secondary: #5c6c64;
+  --text-tertiary: #89968f;
+  --accent: #ec7651;
+  --accent-soft: #fce4dc;
+  --accent-glow: rgba(236, 118, 81, 0.24);
+  --signal: #24745d;
+  --signal-soft: #dcefe7;
+  --danger: #a94131;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic",
+    "Noto Sans JP", sans-serif;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
   --bg: #0d0d0f;
   --bg-elevated: #171719;
   --bg-elevated-2: #232326;
@@ -10,13 +34,12 @@
   --text-secondary: #a3a3a8;
   --text-tertiary: #6f6f76;
   --accent: #22c55e;
+  --accent-soft: #17532f;
   --accent-glow: rgba(34, 197, 94, 0.35);
+  --signal: #22c55e;
+  --signal-soft: #17532f;
   --danger: #ef4444;
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 22px;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic",
-    "Noto Sans JP", sans-serif;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -28,6 +51,9 @@
   --color-text-secondary: var(--text-secondary);
   --color-text-tertiary: var(--text-tertiary);
   --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
   --color-danger: var(--danger);
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
@@ -46,6 +72,7 @@ body {
   background: var(--bg);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 body {
@@ -73,5 +100,26 @@ body {
   }
   50% {
     transform: scaleY(1);
+  }
+}
+
+.generating-loader span {
+  animation: generating-pulse 1.1s ease-in-out infinite;
+}
+.generating-loader span:nth-child(2) {
+  animation-delay: 0.14s;
+}
+.generating-loader span:nth-child(3) {
+  animation-delay: 0.28s;
+}
+@keyframes generating-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-5px);
   }
 }

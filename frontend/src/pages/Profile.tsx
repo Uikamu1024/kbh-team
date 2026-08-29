@@ -3,11 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { ApiError, getUser, putUserSettings, putUserTags, regenerateLatestProgram } from "@/lib/api";
 import { useUserId } from "@/lib/useUserId";
 import { getDisplayName, setDisplayName as saveDisplayName } from "@/lib/user";
+import { applyTheme, getStoredTheme, type Theme } from "@/lib/theme";
 import { MIN_TAGS } from "@/lib/presetTags";
 import { TagPicker } from "@/components/TagPicker";
 import type { UserProfile } from "@/lib/types";
 
 const LENGTH_OPTIONS = [5, 10, 15] as const;
+const THEME_OPTIONS: { value: Theme; label: string }[] = [
+  { value: "light", label: "ライト" },
+  { value: "dark", label: "ダーク" },
+];
 
 type LoadState = { status: "loading" } | { status: "error" } | { status: "ready" };
 
@@ -26,6 +31,7 @@ export default function Profile() {
   const [displayName, setDisplayNameState] = useState(getDisplayName());
   const [nameEditorOpen, setNameEditorOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState(displayName);
+  const [theme, setTheme] = useState<Theme>(getStoredTheme());
   const isFirstTagsRender = useRef(true);
   const requestKey = `${userId}:${attempt}`;
 
@@ -111,6 +117,11 @@ export default function Profile() {
     }
   }
 
+  function handleThemeChange(next: Theme) {
+    applyTheme(next);
+    setTheme(next);
+  }
+
   function openNameEditor() {
     setNameDraft(displayName);
     setNameEditorOpen(true);
@@ -140,7 +151,7 @@ export default function Profile() {
         <button
           type="button"
           onClick={() => setAttempt((n) => n + 1)}
-          className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-[#06120a]"
+          className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white"
         >
           再試行
         </button>
@@ -153,7 +164,7 @@ export default function Profile() {
   return (
     <div className="pt-4">
       <section className="flex items-center gap-3.5">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-[#0f3d24] text-xl font-bold text-[#06120a]">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent text-xl font-bold text-white">
           {displayName.slice(0, 1)}
         </div>
         <div className="min-w-0 flex-1">
@@ -174,7 +185,7 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={handleSaveName}
-                className="shrink-0 rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-[#06120a]"
+                className="shrink-0 rounded-full bg-signal px-3 py-1.5 text-xs font-semibold text-white"
               >
                 保存
               </button>
@@ -228,7 +239,6 @@ export default function Profile() {
               saveSettings({ deliveryTime: e.target.value, lengthMinutes });
             }}
             className="shrink-0 rounded-lg border border-bg-elevated-3 bg-bg-elevated-2 px-2.5 py-1.5 text-sm font-semibold text-text-primary"
-            style={{ colorScheme: "dark" }}
           />
         </div>
 
@@ -248,11 +258,34 @@ export default function Profile() {
                 }}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                   lengthMinutes === minutes
-                    ? "bg-accent text-[#06120a]"
+                    ? "bg-signal text-white"
                     : "text-text-secondary hover:text-text-primary"
                 }`}
               >
                 {minutes}分
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 border-t border-bg-elevated-3 py-4">
+          <div className="min-w-0">
+            <p className="m-0 mb-0.5 text-sm font-semibold">外観</p>
+            <p className="m-0 text-xs text-text-tertiary">画面の配色を切り替えます</p>
+          </div>
+          <div className="flex shrink-0 gap-0.5 rounded-full bg-bg-elevated-2 p-[3px]">
+            {THEME_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleThemeChange(option.value)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  theme === option.value
+                    ? "bg-signal text-white"
+                    : "text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                {option.label}
               </button>
             ))}
           </div>

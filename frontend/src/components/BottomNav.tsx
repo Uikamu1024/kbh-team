@@ -39,8 +39,8 @@ export const BottomNav = forwardRef<HTMLElement>(function BottomNav(_props, ref)
           <Link
             key={tab.href}
             to={tab.href}
-            className={`flex flex-1 flex-col items-center gap-1 py-2 text-[11px] transition-colors ${
-              active ? "text-accent" : "text-text-tertiary hover:text-text-secondary"
+            className={`flex flex-1 flex-col items-center gap-1 py-2 text-[11px] font-semibold transition-colors ${
+              active ? "text-signal" : "text-text-tertiary hover:text-text-secondary"
             }`}
           >
             <svg

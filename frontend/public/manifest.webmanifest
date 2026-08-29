@@ -4,8 +4,8 @@
   "description": "通学中に聞ける、テーマ登録型のパーソナルAIラジオ",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d0d0f",
-  "theme_color": "#0d0d0f",
+  "background_color": "#f8faf9",
+  "theme_color": "#f8faf9",
   "icons": [
     {
       "src": "/icon.svg",
