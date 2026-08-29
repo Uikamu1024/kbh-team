@@ -36,8 +36,11 @@ func New(database *db.DB, fileStorage *storage.Storage) *Server {
 		voicevoxURL = defaultVoicevoxURL
 	}
 	var languageModel llm.LLM = llm.NewGeminiLLM(nil)
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("LLM_PROVIDER")), "openrouter") {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("LLM_PROVIDER"))) {
+	case "openrouter":
 		languageModel = llm.NewOpenRouterLLM(nil)
+	case "ollama":
+		languageModel = llm.NewOllamaLLM(nil)
 	}
 	return &Server{
 		database:          database,
