@@ -63,7 +63,7 @@
 | `is_primary`が各groupに1件である保証が無い | 部分ユニークインデックスをDBレベルで追加 | [04-schema.md](04-schema.md) |
 | タグの表記揺れ（`AI`/`ai`等）で検索がヒットしない | フロントの固定タグ一覧と1文字違わず一致させる運用ルールを明記 | [01-feed-config.md](01-feed-config.md) |
 | `cmd/demo`・`cmd/gentrace`もキャッシュ経由にすべきか | 意図的に対象外とし、ライブfetchのまま残す（`gentrace`は実通信の検証が目的のため） | [03-selection.md](03-selection.md) |
-| `docs/api-contract.yaml`との整合 | 生成時エラーの前提が変わる（`UPSTREAM_FETCH_FAILED`→`ARTICLE_CACHE_EMPTY`）。**実装着手前に別途更新・共有が必要** | [03-selection.md](03-selection.md) |
+| `docs/api-contract.yaml`との整合 | 生成時エラーの前提が変わる（`UPSTREAM_FETCH_FAILED`→`ARTICLE_CACHE_EMPTY`/`NO_UNSEEN_ARTICLES`）。**反映済み**（フロントエンド担当への共有は別途必要） | [03-selection.md](03-selection.md)、[docs/api-contract.yaml](../../../docs/api-contract.yaml) |
 
 **Codexの指摘のうち採用しなかったもの**：「既に確立した2つの`topic_group_id`が事後的に統合される場合、`user_seen_topics`の整合性が壊れる」という懸念については、[02-ingestion.md](02-ingestion.md)の重複判定アルゴリズムが新規記事を既存groupへ追記するだけで、確立済みgroup同士を統合する処理が設計上存在しないことを確認し、該当しないと判断した（[04-schema.md](04-schema.md)の`user_seen_topics`節に根拠を明記）。
 

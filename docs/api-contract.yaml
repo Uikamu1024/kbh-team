@@ -339,6 +339,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "503":
+          description: "記事キャッシュが利用できない（`POST /api/demo/generate`と同じ`ARTICLE_CACHE_EMPTY`/`NO_UNSEEN_ARTICLES`のcode体系）。この2エラーは`reset_count`を消費しない"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/programs/{programId}:
     get:
@@ -464,6 +470,30 @@ paths:
                 error:
                   code: INVALID_TAGS
                   message: "tagsは1件以上指定してください"
+        "503":
+          description: |
+            記事キャッシュが利用できない（[backend/docs/generation/03-selection.md]
+            (../backend/docs/generation/03-selection.md)参照。記事取得はこの
+            エンドポイントの呼び出し時ではなく、事前に別ジョブ（`cmd/ingest`）が
+            RSSフィードから収集・キャッシュしておく方式に変更されたため、
+            `UPSTREAM_FETCH_FAILED`はこのエンドポイントでは発生しなくなった）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                cacheEmpty:
+                  summary: 該当タグの記事がキャッシュに1件も無い（収集ジョブ未実行・対象タグの記事が未収集）
+                  value:
+                    error:
+                      code: ARTICLE_CACHE_EMPTY
+                      message: "利用できる新着記事がまだ収集されていません"
+                noUnseenArticles:
+                  summary: キャッシュに記事はあるが、直近14日以内の新しい話題が無い
+                  value:
+                    error:
+                      code: NO_UNSEEN_ARTICLES
+                      message: "未配信の新着記事がありません"
         "502":
           description: 外部プロバイダの呼び出し失敗
           content:
@@ -471,12 +501,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
               examples:
-                fetchFailed:
-                  summary: 記事取得（jina.ai／firecrawl）が両方とも失敗
-                  value:
-                    error:
-                      code: UPSTREAM_FETCH_FAILED
-                      message: "記事の取得に失敗しました"
                 llmFailed:
                   summary: Gemini API呼び出し失敗・レート制限
                   value:
@@ -839,7 +863,8 @@ components:
                 - AUDIO_NOT_FOUND
                 - ALREADY_GENERATING
                 - RESET_LIMIT_EXCEEDED
-                - UPSTREAM_FETCH_FAILED
+                - ARTICLE_CACHE_EMPTY
+                - NO_UNSEEN_ARTICLES
                 - UPSTREAM_LLM_FAILED
                 - UPSTREAM_TTS_FAILED
                 - INTERNAL_ERROR

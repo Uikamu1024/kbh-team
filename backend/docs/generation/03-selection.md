@@ -78,7 +78,7 @@ LIMIT 30
 - **`demo/generate`・`regenerate`**：どちらのケースもエラーレスポンスを返す（`ARTICLE_CACHE_EMPTY`または`NO_UNSEEN_ARTICLES`、いずれもHTTP 503）。`regenerate`の場合、この2つのエラーは`reset_count`（1日3回の作り直し上限）を消費させない（パイプライン起動前に弾く既存の`ALREADY_GENERATING`判定と同じ扱い）
 - **`batch/run`**：全ユーザーを走査するループの中で、該当ユーザーだけをスキップしてログに記録し、次のユーザーの処理を継続する（バッチ全体を失敗させない）。そのユーザーの`latest program`は前回のものが維持され、更新されない
 
-**要フォローアップ**：[docs/api-contract.yaml](../../../docs/api-contract.yaml)は現状`UPSTREAM_FETCH_FAILED`（外部fetch失敗）を前提にしたエラー説明になっており、本設計（生成時は外部fetchしない）とは前提が変わる。実装着手時に、`demo/generate`・`regenerate`のエラーレスポンス定義へ`ARTICLE_CACHE_EMPTY`・`NO_UNSEEN_ARTICLES`を追加し、`UPSTREAM_FETCH_FAILED`の扱い（収集ジョブ側のエラーとして別枠にするか、生成時のエラー一覧から外すか）を整理すること。ルートの[CLAUDE.md](../../../CLAUDE.md)の方針どおり、これは実装より先にapi-contract.yamlを更新すべき事項なので、着手前にフロントエンド担当（別セッション）へ共有すること
+**反映済み**：[docs/api-contract.yaml](../../../docs/api-contract.yaml)の`demo/generate`・`regenerate`に`503`（`ARTICLE_CACHE_EMPTY`/`NO_UNSEEN_ARTICLES`）を追加し、`UPSTREAM_FETCH_FAILED`は両エンドポイントの説明・共通エラーコード列挙から削除済み（生成時は外部fetchを一切行わなくなったため、このコードはもうどのHTTPエンドポイントからも返らない）。フロントエンド担当（別セッション）への共有が必要。
 
 ## 関連
 - 前のステップ：[02-ingestion.md](02-ingestion.md)
