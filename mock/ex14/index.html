@@ -29,10 +29,52 @@
       </button>
     </header>
 
+    <!-- ===== 初回設定: ユーザー名 ===== -->
+    <main class="screen onboarding-screen" id="screen-onboarding-name" data-ui-name="初回設定・名前 / Name setup" hidden>
+      <div class="onboarding-content">
+        <p class="onboarding-step">はじめての設定 01 / 02</p>
+        <h1 class="onboarding-title">まずは、あなたの<br>名前を教えてください。</h1>
+        <p class="onboarding-description">朝の番組で呼びかける名前として使います。</p>
+        <form id="nameForm" class="onboarding-form">
+          <label class="onboarding-label" for="userNameInput">表示名</label>
+          <input id="userNameInput" class="onboarding-input" type="text" maxlength="20" autocomplete="name" placeholder="例：たろう">
+          <button class="onboarding-button" id="nameNextBtn" type="submit" disabled>次へ</button>
+        </form>
+      </div>
+    </main>
+
+    <!-- ===== 初回設定: 興味関心 ===== -->
+    <main class="screen onboarding-screen" id="screen-onboarding-interests" data-ui-name="初回設定・興味関心 / Interest setup" hidden>
+      <div class="onboarding-content">
+        <p class="onboarding-step">はじめての設定 02 / 02</p>
+        <h1 class="onboarding-title">気になるテーマを<br>2〜3個選んでください。</h1>
+        <p class="onboarding-description">選んだテーマをもとに、毎朝の番組をつくります。</p>
+        <div class="onboarding-tag-grid" id="onboardingTagGrid"></div>
+        <p class="onboarding-counter" id="onboardingCounter">0 / 3 選択中</p>
+        <button class="onboarding-button" id="interestsNextBtn" type="button" disabled>番組をはじめる</button>
+      </div>
+    </main>
+
+    <!-- ===== 初回設定: 番組作成中 ===== -->
+    <main class="screen onboarding-screen generating-screen" id="screen-generating" data-ui-name="番組作成中 / Generating" hidden>
+      <div class="generating-content">
+        <div class="generating-loader" aria-hidden="true"><span></span><span></span><span></span></div>
+        <p class="onboarding-step">今日の番組を準備中</p>
+        <h1 class="onboarding-title">あなた向けのニュースを<br>集めています。</h1>
+        <p class="onboarding-description"><span id="generatingTopics">選んだテーマ</span>から、今朝の話題をまとめています。</p>
+        <div class="generating-status" aria-live="polite">
+          <p class="generating-status-item active" id="generatingStatusOne">ニュースを集めています</p>
+          <p class="generating-status-item" id="generatingStatusTwo">内容を読みやすく整理しています</p>
+          <p class="generating-status-item" id="generatingStatusThree">番組を準備しています</p>
+        </div>
+      </div>
+    </main>
+
     <!-- ===== ホーム画面 ===== -->
     <main class="screen" id="screen-home" data-screen="home" data-ui-name="ホーム画面 / Home">
+      <button class="debug-reset-button" id="resetOnboardingBtn" type="button">デバッグ：初回起動に戻す</button>
       <section class="greeting" data-ui-name="挨拶・今日の件数 / Greeting">
-        <p>ゲストさん、おはようございます。<br>今日は<strong id="greetingCount">3</strong>件、動きがあります。</p>
+        <p><span id="greetingName">ゲスト</span>さん、おはようございます。<br>今日は<strong id="greetingCount">3</strong>件、動きがあります。</p>
       </section>
 
       <section class="diff-card" aria-label="今日の要点" data-ui-name="今日の要点カード / Daily summary">
@@ -103,9 +145,9 @@
     <!-- ===== プロフィール画面 ===== -->
     <main class="screen" id="screen-profile" data-screen="profile" data-ui-name="プロフィール画面 / Profile" hidden>
       <section class="profile-head" data-ui-name="プロフィール概要 / Profile summary">
-        <div class="avatar">G</div>
+        <div class="avatar" id="profileAvatar">G</div>
         <div class="profile-info">
-          <p class="profile-name">ゲストユーザー</p>
+          <p class="profile-name" id="profileName">ゲストユーザー</p>
           <button class="profile-link" id="tagSettingBtn">
             興味・関心を設定
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
