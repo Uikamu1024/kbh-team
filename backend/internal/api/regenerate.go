@@ -55,7 +55,7 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 	defer s.finishGenerating(userID)
 
 	requestStartedAt := time.Now()
-	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
 	defer cancel()
 
 	stageStartedAt := time.Now()

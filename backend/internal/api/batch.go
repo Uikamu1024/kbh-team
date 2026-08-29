@@ -68,7 +68,7 @@ func (s *Server) processBatchUser(user db.User) {
 	}
 	defer s.finishGenerating(user.ID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	previousTopics := []string(nil)
 	if _, previousChapters, err := s.database.GetLatestProgramByUser(ctx, user.ID); err == nil {

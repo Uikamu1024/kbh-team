@@ -36,7 +36,7 @@ func (s *Server) generateDemo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	requestStartedAt := time.Now()
-	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
 	defer cancel()
 
 	stageStartedAt := time.Now()

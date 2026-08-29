@@ -13,9 +13,9 @@ import type {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 
 // 記事取得→LLM→TTSを直列実行するエンドポイント（作り直し）は
-// docs/api-contract.yaml 上、数十秒〜1分程度かかる想定のため長めに取る。
+// バックエンド側のハンドラタイムアウト（10分）に合わせて長めに取る。
 const DEFAULT_TIMEOUT_MS = 10_000;
-const LONG_RUNNING_TIMEOUT_MS = 90_000;
+const LONG_RUNNING_TIMEOUT_MS = 600_000;
 
 export class ApiError extends Error {
   code: ApiErrorCode;
