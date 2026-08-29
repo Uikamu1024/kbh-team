@@ -55,6 +55,22 @@ export default function Player() {
     () => (chapter ? chapter.script.split("\n").filter((line) => line.trim() !== "") : []),
     [chapter],
   );
+  // 各行の開始位置（進捗比率0〜1）。チャプターには文単位のタイムスタンプが
+  // 無いため（docs/api-contract.yamlのx-open-questions参照）、行の文字数に
+  // 比例して読み上げ時間を按分する。均等割りだと長い行・短い行で実際の音声と
+  // 数秒単位でずれるため、TTSの読み上げ速度がおおよそ文字数に比例するという
+  // 前提（backend側のestimatedCharactersPerMinuteと同じ考え方）で近似する。
+  const lineStartRatios = useMemo(() => {
+    const totalChars = lines.reduce((sum, line) => sum + line.length, 0);
+    if (totalChars === 0) return lines.map((_, i) => i / Math.max(1, lines.length));
+    const ratios: number[] = [];
+    let acc = 0;
+    for (const line of lines) {
+      ratios.push(acc / totalChars);
+      acc += line.length;
+    }
+    return ratios;
+  }, [lines]);
   const waveform = useMemo(
     () => (chapter ? buildWaveformHeights(chapter.id) : []),
     [chapter],
@@ -103,10 +119,10 @@ export default function Player() {
 
   const chapterDuration = chapterDurations[chapterIndex] ?? chapter.durationSec;
   const progressRatio = chapterDuration > 0 ? chapterElapsed / chapterDuration : 0;
-  const activeLineIndex = Math.min(
-    lines.length - 1,
-    Math.floor(progressRatio * lines.length),
-  );
+  let activeLineIndex = 0;
+  for (let i = 0; i < lineStartRatios.length; i++) {
+    if (progressRatio >= lineStartRatios[i]) activeLineIndex = i;
+  }
   const playedBars = Math.round(waveform.length * progressRatio);
 
   return (
