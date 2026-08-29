@@ -196,3 +196,8 @@ func newUUID() (string, error) {
 	hex.Encode(encoded[24:36], value[10:16])
 	return string(encoded[:]), nil
 }
+
+// NewUUID returns a string UUID for code that needs to create database IDs.
+func NewUUID() (string, error) {
+	return newUUID()
+}

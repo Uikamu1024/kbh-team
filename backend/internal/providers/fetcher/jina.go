@@ -64,7 +64,7 @@ func (f *JinaFetcher) FetchArticles(ctx context.Context, tags []string) ([]domai
 	articles := make([]domain.Article, 0)
 	for _, tag := range tags {
 		for _, sourceURL := range limitedURLs(whitelistURLs(tag)) {
-			article, err := f.fetchArticle(ctx, sourceURL)
+			article, err := f.FetchArticle(ctx, sourceURL)
 			if err != nil {
 				return nil, fmt.Errorf("fetch article %q for tag %q: %w", sourceURL, tag, err)
 			}
@@ -74,7 +74,13 @@ func (f *JinaFetcher) FetchArticles(ctx context.Context, tags []string) ([]domai
 	return articles, nil
 }
 
-func (f *JinaFetcher) fetchArticle(ctx context.Context, sourceURL string) (domain.Article, error) {
+// FetchArticle retrieves and normalizes the body for one article URL through
+// jina.ai Reader. Callers that already have RSS metadata should replace the
+// returned title, publication time, and source name with that metadata.
+func (f *JinaFetcher) FetchArticle(ctx context.Context, sourceURL string) (domain.Article, error) {
+	if f.MockMode() {
+		return articleFromContent("# [MOCK] article\n\nThis is a local mock article body.", sourceURL), nil
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, jinaReaderURL+sourceURL, nil)
 	if err != nil {
 		return domain.Article{}, err
@@ -104,6 +110,12 @@ func (f *JinaFetcher) fetchArticle(ctx context.Context, sourceURL string) (domai
 	}
 
 	return articleFromContent(string(body), sourceURL), nil
+}
+
+// MockMode reports whether Jina credentials are absent and local mock content
+// is therefore used instead of a Reader request.
+func (f *JinaFetcher) MockMode() bool {
+	return strings.TrimSpace(os.Getenv("JINA_AI_API_KEY")) == ""
 }
 
 func articleFromContent(content, sourceURL string) domain.Article {
