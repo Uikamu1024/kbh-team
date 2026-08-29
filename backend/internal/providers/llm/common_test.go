@@ -41,13 +41,13 @@ func TestStripNavigationLinesKeepsPlainProse(t *testing.T) {
 	}
 }
 
-func TestBodyPromptCharLimitReachesRealContentAfterNavJunk(t *testing.T) {
+func TestStripNavigationLinesDoesNotDropContentAfterLongNavBlock(t *testing.T) {
 	navJunk := strings.Repeat("[マイページ](https://id.itmedia.co.jp/isentry/contents?sc=verylongtrackingquerystring)\n\n", 20)
 	body := navJunk + "本文はここから始まります。これが実際の記事の内容です。"
 
-	truncated := truncateRunes(stripNavigationLines(body), bodyPromptCharLimit)
+	cleaned := stripNavigationLines(body)
 
-	if !strings.Contains(truncated, "本文はここから始まります") {
-		t.Fatalf("expected real content to be reachable within the char limit after stripping nav junk, got: %q", truncated)
+	if !strings.Contains(cleaned, "本文はここから始まります") {
+		t.Fatalf("expected real content to survive stripping a long nav block, got: %q", cleaned)
 	}
 }

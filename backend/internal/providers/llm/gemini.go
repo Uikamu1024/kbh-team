@@ -37,38 +37,61 @@ func (g *GeminiLLM) ScoreTopic(ctx context.Context, topic domain.Topic, previous
 	if strings.TrimSpace(os.Getenv("LLM_API_KEY")) == "" {
 		return mockScoreTopic(topic, previousTopics), IsTopicNew(topic, previousTopics), nil
 	}
-
-	requestBody, err := buildScoreRequest(topic, previousTopics)
-	if err != nil {
-		return 0, false, err
-	}
-
-	apiResponse, err := g.generateContent(ctx, requestBody)
-	if err != nil {
-		return 0, false, err
-	}
-
-	return parseScoreResult(apiResponse, "Gemini")
+	return scoreTopicViaPrompt(ctx, g.sendPrompt, "Gemini", topic, previousTopics)
 }
 
-// GenerateScript creates a greeting and one conversational chapter per topic.
-// Without LLM_API_KEY, it returns a deterministic local mock script.
+// GenerateScript creates a greeting and one conversational chapter per topic,
+// one Gemini call for the greeting and one call per chapter. Without
+// LLM_API_KEY, it returns a deterministic local mock script.
 func (g *GeminiLLM) GenerateScript(ctx context.Context, selected []domain.ScoredTopic) (string, []domain.ChapterDraft, error) {
 	if strings.TrimSpace(os.Getenv("LLM_API_KEY")) == "" {
 		greetingText, chapters := mockGenerateScript(selected)
 		return greetingText, chapters, nil
 	}
+	return generateScriptViaChapters(ctx, g.sendPrompt, "Gemini", selected)
+}
 
-	requestBody, err := buildScriptRequest(selected)
-	if err != nil {
-		return "", nil, err
+// ExtractMetadata asks Gemini to classify tags and extract UI/summary
+// metadata for one article via structured output (responseSchema). Without
+// LLM_API_KEY, a conservative local mock is used instead (see
+// mockExtractMetadata).
+func (g *GeminiLLM) ExtractMetadata(ctx context.Context, title, body string) (domain.ArticleMetadata, error) {
+	if strings.TrimSpace(os.Getenv("LLM_API_KEY")) == "" {
+		return mockExtractMetadata(title), nil
 	}
-	apiResponse, err := g.generateContent(ctx, requestBody)
-	if err != nil {
-		return "", nil, err
-	}
+	return extractMetadataViaPrompt(ctx, g.sendStructuredPrompt, "Gemini", title, body)
+}
 
-	return parseScriptResult(apiResponse, selected, "Gemini")
+// DetectDuplicates asks Gemini, in one call, to group newTitles among
+// themselves and against existingGroups via structured output. Without
+// LLM_API_KEY, every new title gets its own freshly minted group (see
+// mockDetectDuplicates).
+func (g *GeminiLLM) DetectDuplicates(ctx context.Context, newTitles []string, existingGroups []domain.ExistingTopicGroup) ([]domain.DuplicateAssignment, error) {
+	if strings.TrimSpace(os.Getenv("LLM_API_KEY")) == "" {
+		return mockDetectDuplicates(newTitles)
+	}
+	return detectDuplicatesViaPrompt(ctx, g.sendStructuredPrompt, "Gemini", newTitles, existingGroups)
+}
+
+// sendPrompt sends one raw prompt as a Gemini generateContent request and
+// returns the raw text response.
+func (g *GeminiLLM) sendPrompt(ctx context.Context, prompt string) (string, error) {
+	requestBody, err := buildGenerateContentRequest(prompt)
+	if err != nil {
+		return "", err
+	}
+	return g.generateContent(ctx, requestBody)
+}
+
+// sendStructuredPrompt sends one prompt as a Gemini generateContent request
+// with generationConfig.responseSchema set, constraining the response to the
+// given (provider-neutral) JSON Schema translated into Gemini's dialect.
+func (g *GeminiLLM) sendStructuredPrompt(ctx context.Context, prompt string, schema map[string]any) (string, error) {
+	requestBody, err := buildGenerateContentRequestWithSchema(prompt, schema)
+	if err != nil {
+		return "", err
+	}
+	return g.generateContent(ctx, requestBody)
 }
 
 type generateContentRequest struct {
@@ -85,7 +108,8 @@ type geminiPart struct {
 }
 
 type generationConfig struct {
-	ResponseMIMEType string `json:"responseMimeType"`
+	ResponseMIMEType string         `json:"responseMimeType"`
+	ResponseSchema   map[string]any `json:"responseSchema,omitempty"`
 }
 
 type generateContentResponse struct {
@@ -99,14 +123,9 @@ type generateContentResponse struct {
 	} `json:"error"`
 }
 
-func buildScoreRequest(topic domain.Topic, previousTopics []string) ([]byte, error) {
-	prompt, err := buildScorePrompt(topic, previousTopics)
-	if err != nil {
-		return nil, err
-	}
-
+func buildGenerateContentRequest(prompt string) ([]byte, error) {
 	request := generateContentRequest{
-		Contents: []geminiContent{{Parts: []geminiPart{{Text: string(prompt)}}}},
+		Contents: []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
 		GenerationConfig: generationConfig{
 			ResponseMIMEType: "application/json",
 		},
@@ -114,19 +133,90 @@ func buildScoreRequest(topic domain.Topic, previousTopics []string) ([]byte, err
 	return json.Marshal(request)
 }
 
-func buildScriptRequest(selected []domain.ScoredTopic) ([]byte, error) {
-	prompt, err := buildScriptPrompt(selected)
-	if err != nil {
-		return nil, err
-	}
-
+// buildGenerateContentRequestWithSchema is like buildGenerateContentRequest
+// but additionally constrains the response to schema (a provider-neutral
+// JSON Schema, see metadataResponseSchema/duplicateResponseSchema in
+// common.go), translated into Gemini's responseSchema dialect.
+func buildGenerateContentRequestWithSchema(prompt string, schema map[string]any) ([]byte, error) {
 	request := generateContentRequest{
-		Contents: []geminiContent{{Parts: []geminiPart{{Text: string(prompt)}}}},
+		Contents: []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
 		GenerationConfig: generationConfig{
 			ResponseMIMEType: "application/json",
+			ResponseSchema:   toGeminiSchema(schema),
 		},
 	}
 	return json.Marshal(request)
+}
+
+// toGeminiSchema translates a standard JSON Schema map (as built by
+// metadataResponseSchema/duplicateResponseSchema in common.go) into Gemini's
+// responseSchema dialect (a subset of OpenAPI 3.0): type names are
+// upper-cased (STRING/OBJECT/ARRAY/INTEGER), and a ["x","null"] type union
+// becomes {"type":"X","nullable":true} since Gemini has no type-union
+// syntax. UNVERIFIED against a live Gemini structured-output call — flagged
+// for confirmation per backend/docs/generation/02-ingestion.md step 5's
+// "対応プロバイダ...実装時に確認すること".
+func toGeminiSchema(schema map[string]any) map[string]any {
+	result := make(map[string]any, len(schema))
+	for key, value := range schema {
+		switch key {
+		case "type":
+			geminiType, nullable := toGeminiType(value)
+			result["type"] = geminiType
+			if nullable {
+				result["nullable"] = true
+			}
+		case "properties":
+			properties, ok := value.(map[string]any)
+			if !ok {
+				result[key] = value
+				continue
+			}
+			converted := make(map[string]any, len(properties))
+			for propName, propSchema := range properties {
+				if propMap, ok := propSchema.(map[string]any); ok {
+					converted[propName] = toGeminiSchema(propMap)
+				} else {
+					converted[propName] = propSchema
+				}
+			}
+			result[key] = converted
+		case "items":
+			if itemsMap, ok := value.(map[string]any); ok {
+				result[key] = toGeminiSchema(itemsMap)
+			} else {
+				result[key] = value
+			}
+		case "additionalProperties":
+			// Not part of Gemini's responseSchema dialect; drop it.
+		default:
+			result[key] = value
+		}
+	}
+	return result
+}
+
+// toGeminiType converts a JSON Schema "type" value (a single string, or a
+// ["x","null"] union for a nullable field) into Gemini's upper-cased type
+// name plus whether the field is nullable.
+func toGeminiType(value any) (string, bool) {
+	switch typed := value.(type) {
+	case string:
+		return strings.ToUpper(typed), false
+	case []string:
+		nullable := false
+		primary := ""
+		for _, entry := range typed {
+			if entry == "null" {
+				nullable = true
+				continue
+			}
+			primary = entry
+		}
+		return strings.ToUpper(primary), nullable
+	default:
+		return "STRING", false
+	}
 }
 
 func (g *GeminiLLM) generateContent(ctx context.Context, requestBody []byte) (string, error) {

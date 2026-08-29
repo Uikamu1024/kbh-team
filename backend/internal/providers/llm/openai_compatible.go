@@ -36,76 +36,77 @@ func NewOpenAICompatibleLLM(client *http.Client, baseURL, apiKey, model string) 
 	}
 }
 
-// maxMalformedJSONRetries bounds retries for chat completions whose content
-// fails to parse as the expected JSON shape. Reasoning models (e.g. Ollama
-// Cloud's gpt-oss:20b) sometimes spend their output budget on internal
-// reasoning and cut the visible JSON short; the failure is not consistent
-// across attempts, so a bounded retry recovers most of the time without
-// guessing at provider-specific token/reasoning-effort knobs.
-const maxMalformedJSONRetries = 2
-
 // ScoreTopic asks the configured Chat Completions endpoint to score a topic.
 // Without an API key, a deterministic local mock is used instead.
 func (o *OpenAICompatibleLLM) ScoreTopic(ctx context.Context, topic domain.Topic, previousTopics []string) (int, bool, error) {
 	if o == nil || strings.TrimSpace(o.apiKey) == "" {
 		return mockScoreTopic(topic, previousTopics), IsTopicNew(topic, previousTopics), nil
 	}
-
-	prompt, err := buildScorePrompt(topic, previousTopics)
-	if err != nil {
-		return 0, false, err
-	}
-	requestBody, err := buildOpenAIChatRequest(o.model, string(prompt))
-	if err != nil {
-		return 0, false, err
-	}
-
-	var lastErr error
-	for attempt := 1; attempt <= maxMalformedJSONRetries; attempt++ {
-		apiResponse, err := o.chatCompletions(ctx, requestBody)
-		if err != nil {
-			return 0, false, err
-		}
-		score, isNew, err := parseScoreResult(apiResponse, "OpenAI-compatible provider")
-		if err == nil {
-			return score, isNew, nil
-		}
-		lastErr = err
-	}
-	return 0, false, lastErr
+	return scoreTopicViaPrompt(ctx, o.sendPrompt, "OpenAI-compatible provider", topic, previousTopics)
 }
 
 // GenerateScript asks the configured Chat Completions endpoint to generate a
-// script for the selected topics. Without an API key, a deterministic local
-// mock is used instead.
+// script for the selected topics, one call for the greeting and one call per
+// chapter. Without an API key, a deterministic local mock is used instead.
 func (o *OpenAICompatibleLLM) GenerateScript(ctx context.Context, selected []domain.ScoredTopic) (string, []domain.ChapterDraft, error) {
 	if o == nil || strings.TrimSpace(o.apiKey) == "" {
 		greetingText, chapters := mockGenerateScript(selected)
 		return greetingText, chapters, nil
 	}
+	return generateScriptViaChapters(ctx, o.sendPrompt, "OpenAI-compatible provider", selected)
+}
 
-	prompt, err := buildScriptPrompt(selected)
-	if err != nil {
-		return "", nil, err
+// ExtractMetadata asks the configured Chat Completions endpoint to classify
+// tags and extract UI/summary metadata for one article via structured output
+// (response_format: json_schema). Without an API key, a conservative local
+// mock is used instead (see mockExtractMetadata).
+func (o *OpenAICompatibleLLM) ExtractMetadata(ctx context.Context, title, body string) (domain.ArticleMetadata, error) {
+	if o == nil || strings.TrimSpace(o.apiKey) == "" {
+		return mockExtractMetadata(title), nil
 	}
-	requestBody, err := buildOpenAIChatRequest(o.model, string(prompt))
-	if err != nil {
-		return "", nil, err
-	}
+	return extractMetadataViaPrompt(ctx, o.sendStructuredPrompt, "OpenAI-compatible provider", title, body)
+}
 
-	var lastErr error
-	for attempt := 1; attempt <= maxMalformedJSONRetries; attempt++ {
-		apiResponse, err := o.chatCompletions(ctx, requestBody)
-		if err != nil {
-			return "", nil, err
-		}
-		greetingText, chapters, err := parseScriptResult(apiResponse, selected, "OpenAI-compatible provider")
-		if err == nil {
-			return greetingText, chapters, nil
-		}
-		lastErr = err
+// DetectDuplicates asks the configured Chat Completions endpoint, in one
+// call, to group newTitles among themselves and against existingGroups via
+// structured output. Without an API key, every new title gets its own
+// freshly minted group (see mockDetectDuplicates).
+func (o *OpenAICompatibleLLM) DetectDuplicates(ctx context.Context, newTitles []string, existingGroups []domain.ExistingTopicGroup) ([]domain.DuplicateAssignment, error) {
+	if o == nil || strings.TrimSpace(o.apiKey) == "" {
+		return mockDetectDuplicates(newTitles)
 	}
-	return "", nil, lastErr
+	return detectDuplicatesViaPrompt(ctx, o.sendStructuredPrompt, "OpenAI-compatible provider", newTitles, existingGroups)
+}
+
+// sendPrompt sends one raw prompt as a single-message chat completion and
+// returns the raw text response.
+func (o *OpenAICompatibleLLM) sendPrompt(ctx context.Context, prompt string) (string, error) {
+	requestBody, err := buildOpenAIChatRequest(o.model, prompt)
+	if err != nil {
+		return "", err
+	}
+	return o.chatCompletions(ctx, requestBody)
+}
+
+// sendStructuredPrompt sends one prompt as a single-message chat completion
+// with response_format: json_schema, constraining the response to the given
+// (provider-neutral) JSON Schema.
+//
+// UNVERIFIED against a live call — backend/docs/generation/02-ingestion.md
+// step 5 notes that structured-output support (specifically strict
+// json_schema, as opposed to the looser response_format: json_object used by
+// scoring/script generation) has not been confirmed for Ollama Cloud's
+// available models (Gemma-family models are the working assumption) or for
+// OpenRouter's free-tier models. If a model rejects json_schema outright,
+// this provider needs a fallback to response_format: json_object plus
+// stricter prompt-side JSON-shape instructions instead — not implemented
+// here since it requires live verification against real models.
+func (o *OpenAICompatibleLLM) sendStructuredPrompt(ctx context.Context, prompt string, schema map[string]any) (string, error) {
+	requestBody, err := buildOpenAIChatRequestWithSchema(o.model, prompt, schema)
+	if err != nil {
+		return "", err
+	}
+	return o.chatCompletions(ctx, requestBody)
 }
 
 type openAIChatRequest struct {
@@ -120,7 +121,14 @@ type openAIChatMessage struct {
 }
 
 type openAIResponseFormat struct {
-	Type string `json:"type"`
+	Type       string            `json:"type"`
+	JSONSchema *openAIJSONSchema `json:"json_schema,omitempty"`
+}
+
+type openAIJSONSchema struct {
+	Name   string         `json:"name"`
+	Strict bool           `json:"strict"`
+	Schema map[string]any `json:"schema"`
 }
 
 type openAIChatResponse struct {
@@ -139,6 +147,27 @@ func buildOpenAIChatRequest(model, prompt string) ([]byte, error) {
 			{Role: "user", Content: prompt},
 		},
 		ResponseFormat: openAIResponseFormat{Type: "json_object"},
+	})
+}
+
+// buildOpenAIChatRequestWithSchema is like buildOpenAIChatRequest but
+// additionally constrains the response to schema (a provider-neutral JSON
+// Schema, see metadataResponseSchema/duplicateResponseSchema in common.go)
+// via response_format: json_schema with strict mode.
+func buildOpenAIChatRequestWithSchema(model, prompt string, schema map[string]any) ([]byte, error) {
+	return json.Marshal(openAIChatRequest{
+		Model: model,
+		Messages: []openAIChatMessage{
+			{Role: "user", Content: prompt},
+		},
+		ResponseFormat: openAIResponseFormat{
+			Type: "json_schema",
+			JSONSchema: &openAIJSONSchema{
+				Name:   "structured_response",
+				Strict: true,
+				Schema: schema,
+			},
+		},
 	})
 }
 
