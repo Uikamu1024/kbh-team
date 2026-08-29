@@ -4,15 +4,28 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"unicode/utf8"
 
 	"backend/internal/domain"
 	"backend/internal/providers/llm"
 )
 
-// Japanese speech is roughly 300-350 characters per minute. The midpoint is
-// used here as a simple estimate for the program's time budget.
-const estimatedCharactersPerMinute = 325
+// assumedChapterSeconds estimates how long one chapter's spoken audio will
+// be, for budgeting how many topics to select against lengthMinutes.
+//
+// KNOWN LIMITATION (fixed 2026-08-29): this used to estimate duration from
+// Primary.Body's character count (assuming ~325 Japanese characters/minute).
+// That is wrong: Primary.Body is the raw scraped article (jina.ai Markdown,
+// including navigation/image-alt-text noise), not what gets read aloud. The
+// actual spoken content is script.go's LLM-generated 2-4 line dialogue for
+// the chapter, which bears no relationship to the source article's length.
+// Verified in production: a single cached article's raw body (4,000-22,000+
+// chars) alone exceeded any length_minutes budget, so selectTopics always
+// picked exactly 1 topic regardless of setting, while the real synthesized
+// chapter (a short LLM summary) only ran ~20-50 seconds — producing programs
+// far shorter than length_minutes requested. A fixed per-chapter estimate,
+// based on observed real chapter durations, avoids depending on unrelated
+// source-article length until script duration is known.
+const assumedChapterSeconds = 45
 
 // ScoreAndSelect scores topics, orders them by importance, and selects topics
 // that fit the requested program length.
@@ -60,21 +73,12 @@ func selectTopics(scored []domain.ScoredTopic, lengthMinutes int) []domain.Score
 		return nil
 	}
 
-	selected := make([]domain.ScoredTopic, 0, len(scored))
-	budget := float64(lengthMinutes)
-	usedMinutes := 0.0
-	for _, topic := range scored {
-		durationMinutes := float64(utf8.RuneCountInString(topic.Primary.Body)) / estimatedCharactersPerMinute
-		if len(selected) > 0 && usedMinutes+durationMinutes > budget {
-			break
-		}
-		selected = append(selected, topic)
-		usedMinutes += durationMinutes
+	maxChapters := (lengthMinutes*60 + assumedChapterSeconds - 1) / assumedChapterSeconds
+	if maxChapters < 1 {
+		maxChapters = 1
 	}
-
-	// Always retain the highest-scoring topic, even when it alone exceeds the budget.
-	if len(selected) == 0 {
-		selected = append(selected, scored[0])
+	if maxChapters > len(scored) {
+		maxChapters = len(scored)
 	}
-	return selected
+	return append([]domain.ScoredTopic(nil), scored[:maxChapters]...)
 }
