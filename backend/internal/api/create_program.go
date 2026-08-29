@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"errors"
-	"log"
 	"net/http"
 	"time"
 
@@ -16,6 +15,12 @@ import (
 // that POST /api/batch/run enforces. It exists purely so a demo can show
 // multiple programs in the history list without waiting for multiple days;
 // unlike regenerateLatestProgram it does not replace or delete anything.
+//
+// Ported to the cache-backed selection path (backend/docs/generation/03-selection.md)
+// to match regenerateLatestProgram/generateDemo: article selection now reads
+// internal/db's cache instead of calling pipeline.FetchArticles/DedupeArticles/
+// ScoreAndSelect directly, and the server no longer holds an articleFetcher
+// dependency (that lives in cmd/ingest now).
 func (s *Server) createAdditionalProgram(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("userId")
 	user, err := s.database.GetUser(r.Context(), userID)
@@ -49,28 +54,21 @@ func (s *Server) createAdditionalProgram(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	articles, err := pipeline.FetchArticles(ctx, s.articleFetcher, user.Tags)
+	selected, changeCount, err := pipeline.SelectAndRankCachedTopics(ctx, s.database, user.Tags, userID, user.LengthMinutes, previousTopics)
 	if err != nil {
-		log.Printf("api: create additional program: fetch articles: %v", err)
-		writeError(w, http.StatusBadGateway, "UPSTREAM_FETCH_FAILED", "記事の取得に失敗しました")
-		return
-	}
-	topics := pipeline.DedupeArticles(articles)
-	selected, changeCount, err := pipeline.ScoreAndSelect(ctx, s.languageModel, topics, user.LengthMinutes, previousTopics)
-	if err != nil {
-		log.Printf("api: create additional program: score topics: %v", err)
-		writeError(w, http.StatusBadGateway, "UPSTREAM_LLM_FAILED", "台本生成に失敗しました")
+		if writeArticleSelectionError(w, err) {
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "記事キャッシュを取得できません")
 		return
 	}
 	greetingText, drafts, err := pipeline.GenerateScript(ctx, s.languageModel, selected)
 	if err != nil {
-		log.Printf("api: create additional program: generate script: %v", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_LLM_FAILED", "台本生成に失敗しました")
 		return
 	}
 	chapters, err := pipeline.SynthesizeChapters(ctx, s.speechSynthesizer, greetingText, drafts)
 	if err != nil {
-		log.Printf("api: create additional program: synthesize chapters: %v", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_TTS_FAILED", "音声生成に失敗しました")
 		return
 	}
@@ -84,7 +82,7 @@ func (s *Server) createAdditionalProgram(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "生成した音声を保存できません")
 		return
 	}
-	if err := s.database.CreateProgramWithIDs(ctx, userID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs); err != nil {
+	if err := s.database.CreateProgramWithIDsAndSeenTopics(ctx, userID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs, pipeline.TopicGroupIDs(selected)); err != nil {
 		_ = s.storage.Delete(programID)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "番組を保存できません")
 		return
