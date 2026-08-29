@@ -204,6 +204,19 @@
       </section>
     </main>
 
+    <aside class="mini-player" id="miniPlayer" aria-label="再生中の番組" hidden>
+      <button class="mini-player-main" id="miniPlayerOpen" type="button">
+        <span class="mini-player-art" aria-hidden="true"><span></span></span>
+        <span class="mini-player-info">
+          <strong id="miniPlayerTitle">再生中のチャプター</strong>
+          <span id="miniPlayerSubtitle">1 / 5</span>
+        </span>
+      </button>
+      <button class="mini-player-toggle" id="miniPlayerToggle" type="button" aria-label="一時停止">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" id="miniPlayerIcon"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+      </button>
+    </aside>
+
     <!-- ===== 下部ナビ ===== -->
     <nav class="bottom-nav" data-ui-name="下部ナビゲーション / Bottom navigation">
       <button class="nav-item active" data-target="home">

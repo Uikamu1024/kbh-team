@@ -102,6 +102,9 @@
   const navItems = document.querySelectorAll(".nav-item");
   const minimizeBtn = $("#minimizeBtn");
   const bottomNav = $(".bottom-nav");
+  const miniPlayer = $("#miniPlayer");
+  const miniPlayerOpen = $("#miniPlayerOpen");
+  const miniPlayerToggle = $("#miniPlayerToggle");
   const toastEl = $("#toast");
   const resetOnboardingBtn = $("#resetOnboardingBtn");
 
@@ -115,12 +118,18 @@
     minimizeBtn.hidden = name !== "player";
     bottomNav.hidden = name === "name" || name === "interests";
     renderHeroPlayState();
+    renderMiniPlayer();
   }
 
   navItems.forEach((btn) => {
     btn.addEventListener("click", () => showScreen(btn.dataset.target));
   });
   minimizeBtn.addEventListener("click", () => showScreen("home"));
+  miniPlayerOpen.addEventListener("click", () => showScreen("player"));
+  miniPlayerToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    togglePlay();
+  });
   resetOnboardingBtn.addEventListener("click", () => {
     localStorage.removeItem(ONBOARDING_STORAGE_KEY);
     location.reload();
@@ -247,6 +256,18 @@
       : '<path d="M8 5v14l11-7z"/>';
   }
 
+  function renderMiniPlayer() {
+    const isVisible = (state.screen === "home" || state.screen === "profile") && state.isPlaying;
+    const chapter = currentChapter();
+    miniPlayer.hidden = !isVisible;
+    $("#miniPlayerTitle").textContent = chapter.title;
+    $("#miniPlayerSubtitle").textContent = `${state.currentChapterIndex + 1} / ${PROGRAM.chapters.length} ・ 再生中`;
+    miniPlayerToggle.setAttribute("aria-label", state.isPlaying ? "一時停止" : "再生");
+    $("#miniPlayerIcon").innerHTML = state.isPlaying
+      ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>'
+      : '<path d="M8 5v14l11-7z"/>';
+  }
+
   $("#heroPlayBtn").addEventListener("click", () => {
     if (state.isPlaying) {
       togglePlay();
@@ -348,6 +369,7 @@
     renderLyrics();
     renderProgress();
     renderPlaylist();
+    renderMiniPlayer();
   }
 
   function setPlayIcon(playing) {
@@ -361,6 +383,7 @@
     state.isPlaying = !state.isPlaying;
     setPlayIcon(state.isPlaying);
     renderHeroPlayState();
+    renderMiniPlayer();
     if (state.isPlaying) startTicking(); else stopTicking();
   }
 
