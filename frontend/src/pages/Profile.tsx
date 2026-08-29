@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ApiError,
-  createAdditionalProgram,
   getUser,
   putUserSettings,
   putUserTags,
@@ -34,7 +33,6 @@ export default function Profile() {
   const [lengthMinutes, setLengthMinutes] = useState<5 | 10 | 15>(10);
   const [toast, setToast] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
-  const [addingProgram, setAddingProgram] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [displayName, setDisplayNameState] = useState(getDisplayName());
   const [nameEditorOpen, setNameEditorOpen] = useState(false);
@@ -122,26 +120,6 @@ export default function Profile() {
       }
     } finally {
       setResetting(false);
-    }
-  }
-
-  // デモ用：1日1回の制限を回避して番組をもう1本追加生成する。既存の最新番組は
-  // 置き換えず、履歴に追加される（ホームの「今日の番組」もこの新しい番組に
-  // なる。作成日時が最新のものを表示する仕様のため）。
-  async function handleAddDemoProgram() {
-    if (!userId || addingProgram) return;
-    setAddingProgram(true);
-    try {
-      await createAdditionalProgram(userId);
-      showToast("デモ用に番組をもう1本追加しました");
-    } catch (err) {
-      if (err instanceof ApiError && err.code === "ALREADY_GENERATING") {
-        showToast("前回のリクエストを処理中です。しばらく待ってから再度お試しください");
-      } else {
-        showToast("追加生成に失敗しました");
-      }
-    } finally {
-      setAddingProgram(false);
     }
   }
 
@@ -335,23 +313,6 @@ export default function Profile() {
             className="shrink-0 rounded-full border border-danger px-3.5 py-2 text-[13px] font-semibold text-danger transition-colors hover:bg-danger hover:text-white disabled:cursor-not-allowed disabled:border-bg-elevated-3 disabled:text-text-tertiary disabled:hover:bg-transparent"
           >
             {resetting ? "作り直しています…" : "作り直す"}
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between gap-4 border-t border-bg-elevated-3 py-4">
-          <div className="min-w-0">
-            <p className="m-0 mb-0.5 text-sm font-semibold">デモ用に番組を追加</p>
-            <p className="m-0 text-xs text-text-tertiary">
-              1日1本の制限を無視して、履歴に番組をもう1本追加します
-            </p>
-          </div>
-          <button
-            type="button"
-            disabled={addingProgram}
-            onClick={handleAddDemoProgram}
-            className="shrink-0 rounded-full bg-signal px-3.5 py-2 text-[13px] font-semibold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {addingProgram ? "生成しています…" : "追加生成する"}
           </button>
         </div>
       </section>

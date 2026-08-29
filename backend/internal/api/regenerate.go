@@ -7,13 +7,20 @@ import (
 	"time"
 
 	"backend/internal/db"
+	"backend/internal/debuglog"
 	"backend/internal/domain"
 	"backend/internal/pipeline"
 )
 
-// regenerateLatestProgram rebuilds and persists a user's latest program.
-// The in-memory lock is intentionally process-local, matching the single
-// backend process deployment assumed by this project.
+// regenerateLatestProgram generates and persists a new program for the user
+// ("今日の番組をリセット"). It does NOT replace or delete the existing latest
+// program — it adds a new one to the history, the same as
+// POST /api/users/{userId}/programs used to (that endpoint was removed as a
+// duplicate once this one stopped replacing). The daily reset-count limit
+// (IncrementResetCount, 3/day) is the only thing that still makes this
+// distinct from an ordinary "generate one more program" call. The in-memory
+// lock is intentionally process-local, matching the single backend process
+// deployment assumed by this project.
 func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("userId")
 	user, err := s.database.GetUser(r.Context(), userID)
@@ -26,9 +33,18 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	previousProgram, previousChapters, err := s.database.GetLatestProgramByUser(r.Context(), userID)
-	if err != nil {
-		s.writeRegenerateLookupError(w, err)
+	// A previous program is optional: previousTopics is just used for
+	// IsNew/changeCount diffing, and there being no program yet (first-ever
+	// generation) is not an error now that this no longer requires an
+	// existing program to replace.
+	previousTopics := []string(nil)
+	if _, previousChapters, err := s.database.GetLatestProgramByUser(r.Context(), userID); err == nil {
+		previousTopics = make([]string, 0, len(previousChapters))
+		for _, chapter := range previousChapters {
+			previousTopics = append(previousTopics, chapter.Title)
+		}
+	} else if !errors.Is(err, db.ErrProgramNotFound) {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "既存の番組を取得できません")
 		return
 	}
 
@@ -38,21 +54,21 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 	}
 	defer s.finishGenerating(userID)
 
+	requestStartedAt := time.Now()
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 
-	previousTopics := make([]string, 0, len(previousChapters))
-	for _, chapter := range previousChapters {
-		previousTopics = append(previousTopics, chapter.Title)
-	}
+	stageStartedAt := time.Now()
 	selected, changeCount, err := pipeline.SelectAndRankCachedTopics(ctx, s.database, user.Tags, userID, user.LengthMinutes, previousTopics)
 	if err != nil {
+		debuglog.Printf("api: regenerate: user %s: select topics failed after %s: %v", userID, time.Since(stageStartedAt).Round(time.Millisecond), err)
 		if writeArticleSelectionError(w, err) {
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "記事キャッシュを取得できません")
 		return
 	}
+	debuglog.Printf("api: regenerate: user %s: selected %d chapters in %s", userID, len(selected), time.Since(stageStartedAt).Round(time.Millisecond))
 
 	today, err := deliveryDate(time.Now(), user.DeliveryTime)
 	if err != nil {
@@ -64,16 +80,23 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	stageStartedAt = time.Now()
 	greetingText, drafts, err := pipeline.GenerateScript(ctx, s.languageModel, selected)
 	if err != nil {
+		debuglog.Printf("api: regenerate: user %s: generate script failed after %s: %v", userID, time.Since(stageStartedAt).Round(time.Millisecond), err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_LLM_FAILED", "台本生成に失敗しました")
 		return
 	}
+	debuglog.Printf("api: regenerate: user %s: generated script for %d chapters in %s", userID, len(drafts), time.Since(stageStartedAt).Round(time.Millisecond))
+
+	stageStartedAt = time.Now()
 	chapters, err := pipeline.SynthesizeChapters(ctx, s.speechSynthesizer, greetingText, drafts)
 	if err != nil {
+		debuglog.Printf("api: regenerate: user %s: synthesize chapters failed after %s: %v", userID, time.Since(stageStartedAt).Round(time.Millisecond), err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_TTS_FAILED", "音声生成に失敗しました")
 		return
 	}
+	debuglog.Printf("api: regenerate: user %s: synthesized %d chapters in %s (total so far %s)", userID, len(chapters), time.Since(stageStartedAt).Round(time.Millisecond), time.Since(requestStartedAt).Round(time.Millisecond))
 	if s.storage == nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "音声ストレージが設定されていません")
 		return
@@ -84,13 +107,9 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "生成した音声を保存できません")
 		return
 	}
-	if err := s.database.ReplaceLatestProgramWithIDsAndSeenTopics(r.Context(), userID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs, pipeline.TopicGroupIDs(selected)); err != nil {
+	if err := s.database.CreateProgramWithIDsAndSeenTopics(r.Context(), userID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs, pipeline.TopicGroupIDs(selected)); err != nil {
 		_ = s.storage.Delete(programID)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "番組を保存できません")
-		return
-	}
-	if err := s.storage.Delete(previousProgram.ID); err != nil {
-		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "古い番組の音声を削除できません")
 		return
 	}
 
@@ -99,7 +118,8 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "生成した番組を取得できません")
 		return
 	}
-	writeJSON(w, http.StatusOK, makeProgramResponse(program, storedChapters))
+	debuglog.Printf("api: regenerate: user %s: done in %s", userID, time.Since(requestStartedAt).Round(time.Millisecond))
+	writeJSON(w, http.StatusCreated, makeProgramResponse(program, storedChapters))
 }
 
 func (s *Server) startGenerating(userID string) bool {
@@ -143,17 +163,6 @@ func (s *Server) saveGeneratedAudio(chapters []domain.ChapterAudio) (string, []s
 		chapterAudioPaths[index] = path
 	}
 	return programID, chapterIDs, chapterAudioPaths, nil
-}
-
-func (s *Server) writeRegenerateLookupError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, db.ErrUserNotFound):
-		writeError(w, http.StatusNotFound, "USER_NOT_FOUND", "指定されたユーザーが見つかりません")
-	case errors.Is(err, db.ErrProgramNotFound):
-		writeError(w, http.StatusNotFound, "PROGRAM_NOT_FOUND", "作り直す対象の番組がまだ生成されていません")
-	default:
-		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "作り直す対象の番組を取得できません")
-	}
 }
 
 func (s *Server) writeResetError(w http.ResponseWriter, err error) {

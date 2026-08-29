@@ -271,23 +271,34 @@ paths:
                   code: USER_NOT_FOUND
                   message: "指定されたユーザーが見つかりません"
 
+  /api/users/{userId}/programs/latest/regenerate:
     post:
-      operationId: createAdditionalProgram
-      tags: [programs, demo]
-      summary: 保存済みのtags/lengthMinutesで番組をもう1本追加生成する（デモ用）
+      operationId: regenerateLatestProgram
+      tags: [programs]
+      summary: 今日の番組をリセットする（プロフィールの設定、新しい番組を1本追加生成する）
       description: |
-        通常、番組は1日1回のバッチ（`POST /api/batch/run`）でのみ増える
-        （同じ配信日にすでに番組があれば`batch/run`は何もしない）。この
-        エンドポイントはその制限を回避し、デモで「履歴に複数の番組が
-        並んでいる」様子を見せるために新しい番組をもう1本追加生成する。
+        保存済みの `tags` / `lengthMinutes` を使って番組をもう1本生成し、履歴に追加する。
 
-        `POST /api/users/{userId}/programs/latest/regenerate`とは異なり、
-        既存の最新番組を**置き換えず**、新しい番組として履歴に追加する
-        （`POST /api/batch/run`が内部で行う1ユーザー分の生成処理を、
-        1日1回の制限だけ外して直接呼べるようにしたもの）。
+        **改訂**：以前は既存の最新番組を新しい生成結果で置き換える仕様だったが、
+        「デモ用に番組をもう1本追加生成する」エンドポイント（`POST /api/users/{userId}/programs`、
+        `createAdditionalProgram`）と実質的に同じ処理になったため統合し、こちらが正式な
+        実装として残った（置き換えず追加する）。既存の最新番組は削除されない。
+        `GET /api/users/{userId}/programs/latest` は作成日時が最も新しい番組を返すため、
+        結果としてホーム画面に表示される番組はこの新しい番組に変わる。
 
-        同期実行のため、`POST /api/demo/generate`と同様にレスポンスまで
-        数十秒〜1分程度かかる想定でタイムアウトを設定すること。
+        `POST /api/demo/generate` とは異なり、こちらは**永続化する**。パイプライン全体
+        （記事取得→LLM→TTS）を再実行するため負荷が高く、**1ユーザーにつき1日3回まで**に
+        制限する。回数は `users.reset_count` で管理し、`users.reset_date`（配信時刻を
+        跨いだ日付）が変わった時点でサーバー側が自動的に0へリセットする
+        （[06-storage.md](../backend/docs/pipeline/06-storage.md)参照）。
+
+        同期実行のため、`POST /api/demo/generate` と同様にレスポンスまで数十秒〜1分程度
+        かかる想定でタイムアウトを設定すること。
+
+        **多重リクエストはリクエスト受信時点で即座に拒否する。** 同じ`userId`に対して
+        生成処理が実行中の間に2回目のリクエストが来た場合、そのリクエストはパイプラインを
+        起動せず`409`（`ALREADY_GENERATING`）を即返す（実装方針の詳細は
+        [backend/docs/api-handlers.md](../backend/docs/api-handlers.md#regenerateの多重リクエスト防止)参照）。
       parameters:
         - $ref: "#/components/parameters/UserId"
       responses:
@@ -307,65 +318,6 @@ paths:
                 error:
                   code: USER_NOT_FOUND
                   message: "指定されたユーザーが見つかりません"
-        "409":
-          description: "同じユーザーの生成が既に進行中（regenerateと同じ排他制御を共有）"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              example:
-                error:
-                  code: ALREADY_GENERATING
-                  message: "前回のリクエストを処理中です。しばらく待ってから再度お試しください"
-        "502":
-          description: "外部プロバイダの呼び出し失敗（`POST /api/demo/generate`と同じ`UPSTREAM_*`のcode体系）"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /api/users/{userId}/programs/latest/regenerate:
-    post:
-      operationId: regenerateLatestProgram
-      tags: [programs]
-      summary: 今日の番組を作り直す（プロフィールの設定）
-      description: |
-        保存済みの `tags` / `lengthMinutes` を使って、その日の番組をもう一度生成し直し、
-        `GET /api/users/{userId}/programs/latest` が返す内容を差し替える。
-
-        `POST /api/demo/generate` とは異なり、こちらは**永続化する**（既存の
-        `programs`/`chapters` 行を新しい生成結果で置き換える）。パイプライン全体
-        （記事取得→LLM→TTS）を再実行するため負荷が高く、**1ユーザーにつき1日3回まで**に
-        制限する。回数は `users.reset_count` で管理し、`users.reset_date`（配信時刻を
-        跨いだ日付）が変わった時点でサーバー側が自動的に0へリセットする
-        （[06-storage.md](../backend/docs/pipeline/06-storage.md)参照）。
-
-        同期実行のため、`POST /api/demo/generate` と同様にレスポンスまで数十秒〜1分程度
-        かかる想定でタイムアウトを設定すること。
-
-        **多重リクエストはリクエスト受信時点で即座に拒否する。** 同じ`userId`に対して
-        生成処理が実行中の間に2回目のリクエストが来た場合、そのリクエストはパイプラインを
-        起動せず`409`（`ALREADY_GENERATING`）を即返す（実装方針の詳細は
-        [backend/docs/api-handlers.md](../backend/docs/api-handlers.md#regenerateの多重リクエスト防止)参照）。
-      parameters:
-        - $ref: "#/components/parameters/UserId"
-      responses:
-        "200":
-          description: 作り直し成功。新しい番組を返す
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Program"
-        "404":
-          description: "`userId` が存在しない、または作り直す対象の番組がまだ無い"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              example:
-                error:
-                  code: PROGRAM_NOT_FOUND
-                  message: "作り直す対象の番組がまだ生成されていません"
         "409":
           description: 同じユーザーの作り直しリクエストがすでに処理中
           content:
