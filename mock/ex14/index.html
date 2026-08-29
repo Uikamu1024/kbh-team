@@ -11,12 +11,17 @@
 <div class="phone">
   <div class="app">
 
+    <div class="status-bar" aria-label="端末情報">
+      <span>8:24</span>
+      <div class="status-dots" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+    </div>
+
     <!-- ===== ヘッダー ===== -->
-    <header class="topbar">
+    <header class="topbar" data-ui-name="ヘッダー / Header">
       <div class="topbar-row">
         <span class="app-name">通学ラジオ</span>
         <div class="topbar-right">
-          <span class="date">2月31日(水)</span>
+        <span class="date">8月29日(土)</span>
         </div>
       </div>
       <button class="back-chevron" id="minimizeBtn" aria-label="閉じる" hidden>
@@ -25,12 +30,18 @@
     </header>
 
     <!-- ===== ホーム画面 ===== -->
-    <main class="screen" id="screen-home" data-screen="home">
-      <section class="greeting">
+    <main class="screen" id="screen-home" data-screen="home" data-ui-name="ホーム画面 / Home">
+      <section class="greeting" data-ui-name="挨拶・今日の件数 / Greeting">
         <p>ゲストさん、おはようございます。<br>今日は<strong id="greetingCount">3</strong>件、動きがあります。</p>
       </section>
 
-      <section class="play-hero">
+      <section class="diff-card" aria-label="今日の要点" data-ui-name="今日の要点カード / Daily summary">
+        <strong>今日の要点</strong>
+        <span>関心のあるテーマから、新しい動きを短くまとめています。</span>
+      </section>
+
+      <section class="play-hero" data-ui-name="今日の番組を再生 / Primary action">
+        <p class="hero-kicker">TODAY'S BRIEFING</p>
         <button class="play-hero-btn" id="heroPlayBtn" aria-label="今日の番組を再生">
           <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           <span>再生</span>
@@ -38,26 +49,32 @@
         <p class="play-hero-caption" id="heroCaption">今日の番組・5チャプター・約12分</p>
       </section>
 
-      <section class="history">
+      <div class="home-tags" aria-label="登録中のテーマ" data-ui-name="関心テーマ / Interest tags">
+        <span class="home-tag">AI</span>
+        <span class="home-tag">京都</span>
+        <span class="home-tag">ゲーム</span>
+      </div>
+
+      <section class="history" data-ui-name="再生履歴 / History">
         <h2 class="section-title">履歴</h2>
         <ul class="history-list" id="historyList"></ul>
       </section>
     </main>
 
     <!-- ===== プレイヤー画面 ===== -->
-    <main class="screen" id="screen-player" data-screen="player" hidden>
-      <div class="cover-art" id="coverArt">
+    <main class="screen" id="screen-player" data-screen="player" data-ui-name="プレイヤー画面 / Player" hidden>
+      <div class="cover-art" id="coverArt" data-ui-name="音声カバー / Cover art">
         <div class="cover-art-glow"></div>
         <div class="lyrics" id="lyrics"></div>
       </div>
 
-      <div class="track-meta">
+      <div class="track-meta" data-ui-name="記事情報 / Track information">
         <p class="track-domain" id="trackDomain">example.com</p>
         <h2 class="track-title" id="trackTitle">記事タイトルがここに入ります</h2>
         <p class="track-progress" id="trackProgress">1 / 5</p>
       </div>
 
-      <div class="seek-wrap">
+      <div class="seek-wrap" data-ui-name="再生進捗 / Progress">
         <div class="waveform" id="waveform"></div>
         <div class="time-row">
           <span id="timeCurrent">0:00</span>
@@ -65,7 +82,7 @@
         </div>
       </div>
 
-      <div class="transport">
+      <div class="transport" data-ui-name="再生操作 / Playback controls">
         <button class="transport-btn" id="prevBtn" aria-label="前の記事">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
         </button>
@@ -77,15 +94,15 @@
         </button>
       </div>
 
-      <section class="playlist">
+      <section class="playlist" data-ui-name="チャプター一覧 / Chapter list">
         <h2 class="section-title">この番組のチャプター</h2>
         <ul class="playlist-list" id="playlistList"></ul>
       </section>
     </main>
 
     <!-- ===== プロフィール画面 ===== -->
-    <main class="screen" id="screen-profile" data-screen="profile" hidden>
-      <section class="profile-head">
+    <main class="screen" id="screen-profile" data-screen="profile" data-ui-name="プロフィール画面 / Profile" hidden>
+      <section class="profile-head" data-ui-name="プロフィール概要 / Profile summary">
         <div class="avatar">G</div>
         <div class="profile-info">
           <p class="profile-name">ゲストユーザー</p>
@@ -101,7 +118,7 @@
         <div class="tag-grid" id="tagGrid"></div>
       </section>
 
-      <section class="settings">
+      <section class="settings" data-ui-name="設定 / Settings">
         <h2 class="section-title">設定</h2>
 
         <div class="setting-row">
@@ -133,7 +150,7 @@
         </div>
       </section>
 
-      <section class="profile-stats">
+      <section class="profile-stats" data-ui-name="利用実績 / Usage stats">
         <div class="stat-card">
           <p class="stat-value" id="statTotal">12</p>
           <p class="stat-label">配信された番組</p>
@@ -146,7 +163,7 @@
     </main>
 
     <!-- ===== 下部ナビ ===== -->
-    <nav class="bottom-nav">
+    <nav class="bottom-nav" data-ui-name="下部ナビゲーション / Bottom navigation">
       <button class="nav-item active" data-target="home">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
         <span>ホーム</span>
