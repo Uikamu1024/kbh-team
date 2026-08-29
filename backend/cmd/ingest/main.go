@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -31,8 +32,9 @@ const (
 )
 
 var (
-	limitFlag = flag.Int("limit", 0, "stop after this many new articles are started across all feeds (0 = unlimited). Use a small number for a quick manual test run instead of a full ingest.")
-	traceFlag = flag.Bool("trace", false, "print every outbound HTTP request/response (RSS, jina.ai, LLM) live to stderr, and total time spent per stage, to see what is happening and where time is going")
+	limitFlag                    = flag.Int("limit", 0, "cap on new articles started this run (0 = unlimited). When set, the budget is spread evenly and randomly across feeds (see distributeLimit) instead of draining feeds in config/rss.json order, so a small run still samples from a variety of sources. Pass -disable-limit-distribution to restore the old sequential behavior.")
+	disableLimitDistributionFlag = flag.Bool("disable-limit-distribution", false, "with -limit, drain feeds in config/rss.json order until the limit is reached (the old behavior) instead of distributing the budget randomly across feeds")
+	traceFlag                    = flag.Bool("trace", false, "print every outbound HTTP request/response (RSS, jina.ai, LLM) live to stderr, and total time spent per stage, to see what is happening and where time is going")
 )
 
 type feedStats struct {
@@ -121,8 +123,15 @@ func run() error {
 		recorder = trace.NewRecorder(nil)
 		recorder.Log = printTraceEntry
 	}
+	feeds := config.EnabledFeeds()
+	var perFeedBudget []int
 	if *limitFlag > 0 {
-		log.Printf("limit=%d: stopping after this many new articles are started", *limitFlag)
+		if *disableLimitDistributionFlag {
+			log.Printf("limit=%d: -disable-limit-distribution set, draining feeds in config/rss.json order as before", *limitFlag)
+		} else {
+			perFeedBudget = distributeLimit(len(feeds), *limitFlag)
+			log.Printf("limit=%d across %d feeds: budget distributed randomly per feed instead of draining feeds in order", *limitFlag, len(feeds))
+		}
 	}
 
 	articleFetcher := fetcher.NewJinaFetcher(newClient(30 * time.Second))
@@ -135,14 +144,21 @@ func run() error {
 	ctx := context.Background()
 	collected := make([]collectedArticle, 0)
 	var totalRSSFetchTime, totalBodyFetchTime, totalMetadataExtractTime time.Duration
-	for _, feed := range config.EnabledFeeds() {
-		if *limitFlag > 0 && len(collected) >= *limitFlag {
-			log.Printf("limit=%d reached; skipping remaining feeds", *limitFlag)
-			break
-		}
+	for index, feed := range feeds {
 		remaining := 0
 		if *limitFlag > 0 {
-			remaining = *limitFlag - len(collected)
+			if *disableLimitDistributionFlag {
+				if len(collected) >= *limitFlag {
+					log.Printf("limit=%d reached; skipping remaining feeds", *limitFlag)
+					break
+				}
+				remaining = *limitFlag - len(collected)
+			} else {
+				remaining = perFeedBudget[index]
+				if remaining == 0 {
+					continue
+				}
+			}
 		}
 
 		feedArticles, stats := ingestFeed(ctx, database, rssClient, articleFetcher, languageModel, feed, remaining)
@@ -165,6 +181,40 @@ func run() error {
 		time.Since(resolveStartedAt).Round(time.Millisecond), time.Since(startedAt).Round(time.Millisecond))
 	log.Printf("completed in %s: collected=%d", time.Since(startedAt).Round(time.Millisecond), len(collected))
 	return nil
+}
+
+// distributeLimit spreads a -limit budget of new articles across feedCount
+// feeds so a limited run samples from a variety of sources instead of
+// draining feeds in config/rss.json order (the old behavior, which meant a
+// small -limit only ever touched the first few feeds in the file). The
+// returned slice has one budget entry per feed, in the same order the caller
+// iterates feeds; a budget of 0 means "skip this feed entirely" and is only
+// possible when limit < feedCount.
+//
+//   - limit >= feedCount: every feed gets base := limit/feedCount, and
+//     limit%feedCount randomly chosen feeds get one extra.
+//   - limit < feedCount: a random sample of `limit` feeds each get exactly
+//     one; every other feed's budget is 0.
+func distributeLimit(feedCount, limit int) []int {
+	budgets := make([]int, feedCount)
+	if feedCount == 0 || limit <= 0 {
+		return budgets
+	}
+	if limit >= feedCount {
+		base := limit / feedCount
+		remainder := limit % feedCount
+		for index := range budgets {
+			budgets[index] = base
+		}
+		for _, index := range rand.Perm(feedCount)[:remainder] {
+			budgets[index]++
+		}
+		return budgets
+	}
+	for _, index := range rand.Perm(feedCount)[:limit] {
+		budgets[index] = 1
+	}
+	return budgets
 }
 
 // ingestFeed fetches one feed's fresh, new RSS items, retrieves each body,
