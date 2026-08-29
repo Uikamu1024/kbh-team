@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"backend/internal/debuglog"
 	"backend/internal/domain"
 	"backend/internal/pipeline"
 )
@@ -34,27 +35,39 @@ func (s *Server) generateDemo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	requestStartedAt := time.Now()
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 
+	stageStartedAt := time.Now()
 	selected, changeCount, err := pipeline.SelectAndRankCachedTopics(ctx, s.database, request.Tags, "", 10, nil)
 	if err != nil {
+		debuglog.Printf("api: demo generate: select topics failed after %s: %v", time.Since(stageStartedAt).Round(time.Millisecond), err)
 		if writeArticleSelectionError(w, err) {
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "記事キャッシュを取得できません")
 		return
 	}
+	debuglog.Printf("api: demo generate: selected %d chapters in %s", len(selected), time.Since(stageStartedAt).Round(time.Millisecond))
+
+	stageStartedAt = time.Now()
 	greetingText, drafts, err := pipeline.GenerateScript(ctx, s.languageModel, selected)
 	if err != nil {
+		debuglog.Printf("api: demo generate: generate script failed after %s: %v", time.Since(stageStartedAt).Round(time.Millisecond), err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_LLM_FAILED", "台本生成に失敗しました")
 		return
 	}
+	debuglog.Printf("api: demo generate: generated script for %d chapters in %s", len(drafts), time.Since(stageStartedAt).Round(time.Millisecond))
+
+	stageStartedAt = time.Now()
 	chapters, err := pipeline.SynthesizeChapters(ctx, s.speechSynthesizer, greetingText, drafts)
 	if err != nil {
+		debuglog.Printf("api: demo generate: synthesize chapters failed after %s: %v", time.Since(stageStartedAt).Round(time.Millisecond), err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_TTS_FAILED", "音声生成に失敗しました")
 		return
 	}
+	debuglog.Printf("api: demo generate: synthesized %d chapters in %s (total so far %s)", len(chapters), time.Since(stageStartedAt).Round(time.Millisecond), time.Since(requestStartedAt).Round(time.Millisecond))
 
 	programID, err := newAPIUUID()
 	if err != nil {
@@ -79,6 +92,7 @@ func (s *Server) generateDemo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	debuglog.Printf("api: demo generate: done in %s", time.Since(requestStartedAt).Round(time.Millisecond))
 	writeJSON(w, http.StatusOK, makeDemoProgramResponse(programID, greetingText, changeCount, chapters, chapterIDs))
 }
 

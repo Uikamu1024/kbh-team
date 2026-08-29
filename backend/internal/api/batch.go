@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"backend/internal/db"
+	"backend/internal/debuglog"
 	"backend/internal/pipeline"
 )
 
@@ -80,25 +81,34 @@ func (s *Server) processBatchUser(user db.User) {
 		return
 	}
 
+	requestStartedAt := time.Now()
+	stageStartedAt := time.Now()
 	selected, changeCount, err := pipeline.SelectAndRankCachedTopics(ctx, s.database, user.Tags, user.ID, user.LengthMinutes, previousTopics)
 	if err != nil {
 		if errors.Is(err, pipeline.ErrArticleCacheEmpty) || errors.Is(err, pipeline.ErrNoUnseenArticles) {
 			log.Printf("batch: skip user %s: %v", user.ID, err)
 			return
 		}
-		log.Printf("batch: select cached articles for user %s failed: %v", user.ID, err)
+		log.Printf("batch: select cached articles for user %s failed after %s: %v", user.ID, time.Since(stageStartedAt).Round(time.Millisecond), err)
 		return
 	}
+	debuglog.Printf("batch: user %s: selected %d chapters in %s", user.ID, len(selected), time.Since(stageStartedAt).Round(time.Millisecond))
+
+	stageStartedAt = time.Now()
 	greetingText, drafts, err := pipeline.GenerateScript(ctx, s.languageModel, selected)
 	if err != nil {
-		log.Printf("batch: generate script for user %s failed: %v", user.ID, err)
+		log.Printf("batch: generate script for user %s failed after %s: %v", user.ID, time.Since(stageStartedAt).Round(time.Millisecond), err)
 		return
 	}
+	debuglog.Printf("batch: user %s: generated script for %d chapters in %s", user.ID, len(drafts), time.Since(stageStartedAt).Round(time.Millisecond))
+
+	stageStartedAt = time.Now()
 	chapters, err := pipeline.SynthesizeChapters(ctx, s.speechSynthesizer, greetingText, drafts)
 	if err != nil {
-		log.Printf("batch: synthesize chapters for user %s failed: %v", user.ID, err)
+		log.Printf("batch: synthesize chapters for user %s failed after %s: %v", user.ID, time.Since(stageStartedAt).Round(time.Millisecond), err)
 		return
 	}
+	debuglog.Printf("batch: user %s: synthesized %d chapters in %s (total so far %s)", user.ID, len(chapters), time.Since(stageStartedAt).Round(time.Millisecond), time.Since(requestStartedAt).Round(time.Millisecond))
 	if s.storage == nil {
 		log.Printf("batch: audio storage is not configured for user %s", user.ID)
 		return
@@ -114,7 +124,7 @@ func (s *Server) processBatchUser(user db.User) {
 		log.Printf("batch: save program for user %s failed: %v", user.ID, err)
 		return
 	}
-	log.Printf("batch: generated program %s for user %s", programID, user.ID)
+	log.Printf("batch: generated program %s for user %s in %s", programID, user.ID, time.Since(requestStartedAt).Round(time.Millisecond))
 }
 
 func deliveryTimeReached(now time.Time, deliveryTime string) bool {

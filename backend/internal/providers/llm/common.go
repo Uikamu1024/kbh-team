@@ -12,6 +12,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"backend/internal/debuglog"
 	"backend/internal/domain"
 )
 
@@ -636,6 +637,7 @@ func parseGreetingResult(apiResponse, provider string) (string, error) {
 func parseChapterResult(apiResponse, provider string) ([]domain.Line, error) {
 	var result chapterResult
 	if err := json.Unmarshal([]byte(stripJSONFences(apiResponse)), &result); err != nil {
+		debuglog.Printf("%s chapter response failed to parse: %v\nraw response: %s", provider, err, apiResponse)
 		return nil, fmt.Errorf("decode %s chapter response: %w", provider, err)
 	}
 	if len(result.Lines) == 0 {
