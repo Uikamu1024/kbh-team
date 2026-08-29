@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { TopBar } from "./TopBar";
 import { BottomNav } from "./BottomNav";
+import { MiniPlayer } from "./MiniPlayer";
+import { PlaybackProvider } from "@/lib/PlaybackContext";
 
 // ホーム／プレイヤー／プロフィールの3タブで共有する画面の外枠。
 // TopBar/BottomNavはposition:fixedで常に画面上下に固定し、スクロールするのは
@@ -25,15 +27,18 @@ export function AppShell() {
   }, [location.pathname]);
 
   return (
-    <div className="flex flex-1 flex-col">
-      <TopBar ref={topRef} />
-      <main
-        className="min-h-0 flex-1 overflow-y-auto px-5 pb-6"
-        style={{ paddingTop: topHeight, paddingBottom: bottomHeight }}
-      >
-        <Outlet />
-      </main>
-      <BottomNav ref={bottomRef} />
-    </div>
+    <PlaybackProvider>
+      <div className="flex flex-1 flex-col">
+        <TopBar ref={topRef} />
+        <main
+          className="min-h-0 flex-1 overflow-y-auto px-5 pb-6"
+          style={{ paddingTop: topHeight, paddingBottom: bottomHeight }}
+        >
+          <Outlet />
+        </main>
+        <MiniPlayer />
+        <BottomNav ref={bottomRef} />
+      </div>
+    </PlaybackProvider>
   );
 }
