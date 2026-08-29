@@ -123,7 +123,6 @@ func printResult(greetingText string, changeCount int, chapters []domain.Chapter
 		}
 		fmt.Printf("\nChapter %d\n", index+1)
 		fmt.Printf("Title: %s\n", chapter.Primary.Title)
-		fmt.Printf("ImportanceScore: %d\n", chapter.ImportanceScore)
 		fmt.Printf("DurationSec: %d\n", chapter.DurationSec)
 		fmt.Printf("Script:\n%s\n", strings.Join(lines, "\n"))
 	}

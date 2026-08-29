@@ -91,9 +91,15 @@ type DuplicateAssignment struct {
 	TopicGroupID string
 }
 
-// ChapterDraft is the script for one selected topic.
+// ChapterDraft is the script for one selected topic. It embeds SelectedTopic
+// (not ScoredTopic): neither the cache-backed selection path nor the API/DB
+// layer carry an importance score any more (removed entirely — see
+// backend/docs/generation/03-selection.md). The live-fetch cmd/demo path's
+// score.go still ranks candidates by ScoredTopic.ImportanceScore internally,
+// but converts to SelectedTopic before building a ChapterDraft, so this
+// score never survives past topic selection on either path.
 type ChapterDraft struct {
-	ScoredTopic
+	SelectedTopic
 	Lines []Line
 }
 

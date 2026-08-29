@@ -12,8 +12,11 @@ import (
 type LLM interface {
 	// ScoreTopic scores one topic and determines whether it is new compared with previous topics.
 	ScoreTopic(ctx context.Context, topic domain.Topic, previousTopics []string) (score int, isNew bool, err error)
-	// GenerateScript generates the greeting and chapter drafts for selected topics.
-	GenerateScript(ctx context.Context, selected []domain.ScoredTopic) (greetingText string, chapters []domain.ChapterDraft, err error)
+	// GenerateScript generates the greeting and chapter drafts for selected
+	// topics. Used by both the live-fetch cmd/demo path (score.go converts its
+	// ScoredTopic ranking to SelectedTopic first) and the cache-backed
+	// selection path (select.go), neither of which carries an importance score.
+	GenerateScript(ctx context.Context, selected []domain.SelectedTopic) (greetingText string, chapters []domain.ChapterDraft, err error)
 	// ExtractMetadata asks the LLM to classify tags (constrained to
 	// domain.PresetTags) and extract UI/summary metadata for one article via
 	// structured output (backend/docs/generation/02-ingestion.md step 5).

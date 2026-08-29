@@ -43,7 +43,7 @@ func (g *GeminiLLM) ScoreTopic(ctx context.Context, topic domain.Topic, previous
 // GenerateScript creates a greeting and one conversational chapter per topic,
 // one Gemini call for the greeting and one call per chapter. Without
 // LLM_API_KEY, it returns a deterministic local mock script.
-func (g *GeminiLLM) GenerateScript(ctx context.Context, selected []domain.ScoredTopic) (string, []domain.ChapterDraft, error) {
+func (g *GeminiLLM) GenerateScript(ctx context.Context, selected []domain.SelectedTopic) (string, []domain.ChapterDraft, error) {
 	if strings.TrimSpace(os.Getenv("LLM_API_KEY")) == "" {
 		greetingText, chapters := mockGenerateScript(selected)
 		return greetingText, chapters, nil

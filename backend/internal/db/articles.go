@@ -184,12 +184,17 @@ func (d *DB) StoreIngestedArticle(ctx context.Context, article CachedArticle) er
 	return nil
 }
 
-// SelectCachedTopics returns primary article groups matching user tags. When
-// excludeSeen is true, already delivered topic groups are omitted.
-func (d *DB) SelectCachedTopics(ctx context.Context, tags []string, userID string, excludeSeen bool) ([]domain.ScoredTopic, error) {
+// SelectCachedTopics returns primary article groups matching user tags,
+// ordered by published_at DESC (backend/docs/generation/03-selection.md —
+// there is no importance score to rank by; publish freshness is the only
+// order). When excludeSeen is true, already delivered topic groups are
+// omitted.
+func (d *DB) SelectCachedTopics(ctx context.Context, tags []string, userID string, excludeSeen bool) ([]domain.SelectedTopic, error) {
 	query := `
 		SELECT a.topic_group_id::text, a.title, a.body, a.published_at,
-		       a.source_name, a.source_url, g.related_count, COALESCE(a.importance_score, 0)
+		       a.source_name, a.source_url, a.tags,
+		       COALESCE(a.shortened_title, ''), COALESCE(a.author, ''),
+		       COALESCE(a.abbreviated_body, ''), g.related_count
 		FROM articles a
 		JOIN (
 			SELECT topic_group_id, count(*) AS related_count
@@ -215,9 +220,9 @@ func (d *DB) SelectCachedTopics(ctx context.Context, tags []string, userID strin
 	}
 	defer rows.Close()
 
-	topics := make([]domain.ScoredTopic, 0)
+	topics := make([]domain.SelectedTopic, 0)
 	for rows.Next() {
-		var topic domain.ScoredTopic
+		var topic domain.SelectedTopic
 		if err := rows.Scan(
 			&topic.TopicGroupID,
 			&topic.Primary.Title,
@@ -225,8 +230,11 @@ func (d *DB) SelectCachedTopics(ctx context.Context, tags []string, userID strin
 			&topic.Primary.PublishedAt,
 			&topic.Primary.SourceName,
 			&topic.Primary.SourceURL,
+			&topic.Primary.Tags,
+			&topic.Primary.ShortenedTitle,
+			&topic.Primary.Author,
+			&topic.Primary.AbbreviatedBody,
 			&topic.RelatedCount,
-			&topic.ImportanceScore,
 		); err != nil {
 			return nil, fmt.Errorf("scan cached topic: %w", err)
 		}

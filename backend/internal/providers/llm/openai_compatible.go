@@ -48,7 +48,7 @@ func (o *OpenAICompatibleLLM) ScoreTopic(ctx context.Context, topic domain.Topic
 // GenerateScript asks the configured Chat Completions endpoint to generate a
 // script for the selected topics, one call for the greeting and one call per
 // chapter. Without an API key, a deterministic local mock is used instead.
-func (o *OpenAICompatibleLLM) GenerateScript(ctx context.Context, selected []domain.ScoredTopic) (string, []domain.ChapterDraft, error) {
+func (o *OpenAICompatibleLLM) GenerateScript(ctx context.Context, selected []domain.SelectedTopic) (string, []domain.ChapterDraft, error) {
 	if o == nil || strings.TrimSpace(o.apiKey) == "" {
 		greetingText, chapters := mockGenerateScript(selected)
 		return greetingText, chapters, nil

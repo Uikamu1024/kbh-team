@@ -59,10 +59,9 @@ func TestDatabaseUserAndProgramFlow(t *testing.T) {
 	chapters := []domain.ChapterAudio{
 		{
 			ChapterDraft: domain.ChapterDraft{
-				ScoredTopic: domain.ScoredTopic{
-					Topic:           domain.Topic{Primary: domain.Article{Title: "重要なAIニュース", SourceURL: "https://example.com/ai", SourceName: "Example"}},
-					ImportanceScore: 5,
-					Position:        0,
+				SelectedTopic: domain.SelectedTopic{
+					Topic:    domain.Topic{Primary: domain.Article{Title: "重要なAIニュース", SourceURL: "https://example.com/ai", SourceName: "Example"}},
+					Position: 0,
 				},
 				Lines: []domain.Line{{Speaker: "A", Text: "本文です。"}},
 			},
@@ -70,10 +69,9 @@ func TestDatabaseUserAndProgramFlow(t *testing.T) {
 		},
 		{
 			ChapterDraft: domain.ChapterDraft{
-				ScoredTopic: domain.ScoredTopic{
-					Topic:           domain.Topic{Primary: domain.Article{Title: "関連ニュース", SourceURL: "https://example.com/related", SourceName: "Example"}},
-					ImportanceScore: 3,
-					Position:        1,
+				SelectedTopic: domain.SelectedTopic{
+					Topic:    domain.Topic{Primary: domain.Article{Title: "関連ニュース", SourceURL: "https://example.com/related", SourceName: "Example"}},
+					Position: 1,
 				},
 				Lines: []domain.Line{{Speaker: "B", Text: "関連本文です。"}},
 			},

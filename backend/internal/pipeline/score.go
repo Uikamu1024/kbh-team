@@ -28,8 +28,13 @@ import (
 const assumedChapterSeconds = 45
 
 // ScoreAndSelect scores topics, orders them by importance, and selects topics
-// that fit the requested program length.
-func ScoreAndSelect(ctx context.Context, scorer llm.LLM, topics []domain.Topic, lengthMinutes int, previousTopics []string) ([]domain.ScoredTopic, int, error) {
+// that fit the requested program length. Only cmd/demo's live-fetch path uses
+// this: the importance score itself is used here purely to decide ranking
+// and the selection cutoff, then discarded — the returned SelectedTopic
+// carries no score, matching the cache-backed selection path
+// (backend/docs/generation/03-selection.md), since neither the API response
+// nor the DB persist an importance score any more.
+func ScoreAndSelect(ctx context.Context, scorer llm.LLM, topics []domain.Topic, lengthMinutes int, previousTopics []string) ([]domain.SelectedTopic, int, error) {
 	if scorer == nil {
 		return nil, 0, fmt.Errorf("LLM is nil")
 	}
@@ -50,7 +55,11 @@ func ScoreAndSelect(ctx context.Context, scorer llm.LLM, topics []domain.Topic, 
 		})
 	}
 
-	selected, changeCount := rankAndSelectTopics(scored, lengthMinutes)
+	ranked, changeCount := rankAndSelectTopics(scored, lengthMinutes)
+	selected := make([]domain.SelectedTopic, len(ranked))
+	for index, topic := range ranked {
+		selected[index] = domain.SelectedTopic{Topic: topic.Topic, IsNew: topic.IsNew, Position: topic.Position}
+	}
 	return selected, changeCount, nil
 }
 

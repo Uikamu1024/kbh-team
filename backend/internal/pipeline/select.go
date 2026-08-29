@@ -18,10 +18,12 @@ var (
 	ErrNoUnseenArticles = errors.New("no unseen articles")
 )
 
-// SelectCachedTopics gets fresh article groups from the local cache. An empty
+// SelectCachedTopics gets fresh article groups matching userTags from the
+// local cache (backend/docs/generation/03-selection.md), ordered by
+// published_at DESC — no external communication or LLM call. An empty
 // userID is used by the non-persistent demo endpoint and does not apply the
 // seen-topic exclusion.
-func SelectCachedTopics(ctx context.Context, database *db.DB, userTags []string, userID string) ([]domain.ScoredTopic, error) {
+func SelectCachedTopics(ctx context.Context, database *db.DB, userTags []string, userID string) ([]domain.SelectedTopic, error) {
 	if database == nil {
 		return nil, fmt.Errorf("database is nil")
 	}
@@ -47,10 +49,13 @@ func SelectCachedTopics(ctx context.Context, database *db.DB, userTags []string,
 	return unseen, nil
 }
 
-// SelectAndRankCachedTopics selects cached topics, ranks them by their
-// ingestion-time importance score, and applies the program-length budget
-// without calling an LLM.
-func SelectAndRankCachedTopics(ctx context.Context, database *db.DB, userTags []string, userID string, lengthMinutes int, previousTopics []string) ([]domain.ScoredTopic, int, error) {
+// SelectAndRankCachedTopics selects cached topics matching userTags and
+// applies the program-length budget, without calling an LLM
+// (backend/docs/generation/03-selection.md). Order is decided entirely by
+// the published_at DESC SQL query in internal/db: there is no importance
+// score to rank by any more, so the budget cutoff simply takes the first N
+// candidates in that order.
+func SelectAndRankCachedTopics(ctx context.Context, database *db.DB, userTags []string, userID string, lengthMinutes int, previousTopics []string) ([]domain.SelectedTopic, int, error) {
 	candidates, err := SelectCachedTopics(ctx, database, userTags, userID)
 	if err != nil {
 		return nil, 0, err
@@ -58,13 +63,40 @@ func SelectAndRankCachedTopics(ctx context.Context, database *db.DB, userTags []
 	for index := range candidates {
 		candidates[index].IsNew = llm.IsTopicNew(candidates[index].Topic, previousTopics)
 	}
-	selected, changeCount := rankAndSelectTopics(candidates, lengthMinutes)
+
+	selected := selectTopicsByBudget(candidates, lengthMinutes)
+	changeCount := 0
+	for index := range selected {
+		selected[index].Position = index
+		if selected[index].IsNew {
+			changeCount++
+		}
+	}
 	return selected, changeCount, nil
+}
+
+// selectTopicsByBudget takes the leading candidates (already published_at
+// DESC) up to ceil(lengthMinutes*60/assumedChapterSeconds), or all of them if
+// fewer are available (backend/docs/generation/03-selection.md step 2).
+// assumedChapterSeconds is score.go's constant, shared within this package.
+func selectTopicsByBudget(candidates []domain.SelectedTopic, lengthMinutes int) []domain.SelectedTopic {
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	maxChapters := (lengthMinutes*60 + assumedChapterSeconds - 1) / assumedChapterSeconds
+	if maxChapters < 1 {
+		maxChapters = 1
+	}
+	if maxChapters > len(candidates) {
+		maxChapters = len(candidates)
+	}
+	return append([]domain.SelectedTopic(nil), candidates[:maxChapters]...)
 }
 
 // TopicGroupIDs returns the selected IDs in order for atomic seen-topic
 // recording alongside program persistence.
-func TopicGroupIDs(topics []domain.ScoredTopic) []string {
+func TopicGroupIDs(topics []domain.SelectedTopic) []string {
 	ids := make([]string, 0, len(topics))
 	for _, topic := range topics {
 		if topic.TopicGroupID != "" {

@@ -9,7 +9,7 @@ import (
 )
 
 // GenerateScript delegates script generation to the configured LLM.
-func GenerateScript(ctx context.Context, generator llm.LLM, selected []domain.ScoredTopic) (string, []domain.ChapterDraft, error) {
+func GenerateScript(ctx context.Context, generator llm.LLM, selected []domain.SelectedTopic) (string, []domain.ChapterDraft, error) {
 	if generator == nil {
 		return "", nil, fmt.Errorf("LLM is nil")
 	}

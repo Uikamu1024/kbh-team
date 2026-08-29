@@ -99,7 +99,7 @@ func scoreTopicViaPrompt(ctx context.Context, send promptSender, provider string
 // now follow the same one-call-per-topic pattern: each call is small,
 // independent, and trivially retryable, and a full untruncated article body
 // can be included without the request size compounding across chapters.
-func generateScriptViaChapters(ctx context.Context, send promptSender, provider string, selected []domain.ScoredTopic) (string, []domain.ChapterDraft, error) {
+func generateScriptViaChapters(ctx context.Context, send promptSender, provider string, selected []domain.SelectedTopic) (string, []domain.ChapterDraft, error) {
 	if len(selected) == 0 {
 		return "", nil, nil
 	}
@@ -120,7 +120,7 @@ func generateScriptViaChapters(ctx context.Context, send promptSender, provider 
 		if err != nil {
 			return "", nil, fmt.Errorf("generate chapter %d: %w", index, err)
 		}
-		chapters[index] = domain.ChapterDraft{ScoredTopic: topic, Lines: lines}
+		chapters[index] = domain.ChapterDraft{SelectedTopic: topic, Lines: lines}
 	}
 	return greetingText, chapters, nil
 }
@@ -143,7 +143,7 @@ func generateGreetingViaPrompt(ctx context.Context, send promptSender, provider 
 	return "", lastErr
 }
 
-func generateChapterViaPrompt(ctx context.Context, send promptSender, provider string, topic domain.ScoredTopic, isLast bool) ([]domain.Line, error) {
+func generateChapterViaPrompt(ctx context.Context, send promptSender, provider string, topic domain.SelectedTopic, isLast bool) ([]domain.Line, error) {
 	prompt := buildChapterPrompt(topic, isLast)
 
 	var lastErr error
@@ -560,7 +560,7 @@ The greeting must mention that there are %d change/new topics in today's program
 Do not include a user's display name.`, changeCount)
 }
 
-func buildChapterPrompt(topic domain.ScoredTopic, isLast bool) string {
+func buildChapterPrompt(topic domain.SelectedTopic, isLast bool) string {
 	transitionInstruction := "Include a natural spoken transition into this topic."
 	if isLast {
 		transitionInstruction += " End the chapter with a brief closing sentence for the whole program."
@@ -574,9 +574,8 @@ Do not include a user's display name. Use only speaker values "A" or "B".
 Title: %s
 Article body: %s
 Source: %s (%s)
-Related article count: %d
-Importance score: %d`, transitionInstruction, topic.Primary.Title, stripNavigationLines(topic.Primary.Body),
-		topic.Primary.SourceName, topic.Primary.SourceURL, topic.RelatedCount, topic.ImportanceScore)
+Related article count: %d`, transitionInstruction, topic.Primary.Title, stripNavigationLines(topic.Primary.Body),
+		topic.Primary.SourceName, topic.Primary.SourceURL, topic.RelatedCount)
 }
 
 func parseScoreResult(apiResponse, provider string) (int, bool, error) {
@@ -656,7 +655,7 @@ func IsTopicNew(topic domain.Topic, previousTopics []string) bool {
 	return true
 }
 
-func mockGenerateScript(selected []domain.ScoredTopic) (string, []domain.ChapterDraft) {
+func mockGenerateScript(selected []domain.SelectedTopic) (string, []domain.ChapterDraft) {
 	if len(selected) == 0 {
 		return "", nil
 	}
@@ -669,7 +668,7 @@ func mockGenerateScript(selected []domain.ScoredTopic) (string, []domain.Chapter
 	chapters := make([]domain.ChapterDraft, 0, len(selected))
 	for _, topic := range selected {
 		chapters = append(chapters, domain.ChapterDraft{
-			ScoredTopic: topic,
+			SelectedTopic: topic,
 			Lines: []domain.Line{
 				{Speaker: "A", Text: fmt.Sprintf("[MOCK] まず、「%s」についてお伝えします。", topic.Primary.Title)},
 				{Speaker: "B", Text: fmt.Sprintf("[MOCK] 関連する記事は%d件あり、ポイントを簡単に紹介します。", topic.RelatedCount)},
@@ -680,7 +679,7 @@ func mockGenerateScript(selected []domain.ScoredTopic) (string, []domain.Chapter
 	return greeting, chapters
 }
 
-func countNewTopics(selected []domain.ScoredTopic) int {
+func countNewTopics(selected []domain.SelectedTopic) int {
 	count := 0
 	for _, topic := range selected {
 		if topic.IsNew {

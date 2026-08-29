@@ -142,14 +142,13 @@ func printTraceEntry(entry trace.Entry) {
 }
 
 type metadataChapter struct {
-	Position        int    `json:"position"`
-	Title           string `json:"title"`
-	SourceURL       string `json:"sourceUrl"`
-	SourceName      string `json:"sourceName"`
-	Script          string `json:"script"`
-	DurationSec     int    `json:"durationSec"`
-	ImportanceScore int    `json:"importanceScore"`
-	AudioFile       string `json:"audioFile"`
+	Position    int    `json:"position"`
+	Title       string `json:"title"`
+	SourceURL   string `json:"sourceUrl"`
+	SourceName  string `json:"sourceName"`
+	Script      string `json:"script"`
+	DurationSec int    `json:"durationSec"`
+	AudioFile   string `json:"audioFile"`
 }
 
 type metadata struct {
@@ -184,14 +183,13 @@ func saveResult(tags []string, greetingText string, changeCount int, chapters []
 			return "", fmt.Errorf("write %s: %w", audioFile, err)
 		}
 		meta.Chapters = append(meta.Chapters, metadataChapter{
-			Position:        chapter.Position,
-			Title:           chapter.Primary.Title,
-			SourceURL:       chapter.Primary.SourceURL,
-			SourceName:      chapter.Primary.SourceName,
-			Script:          chapterScript(chapter.Lines),
-			DurationSec:     chapter.DurationSec,
-			ImportanceScore: chapter.ImportanceScore,
-			AudioFile:       audioFile,
+			Position:    chapter.Position,
+			Title:       chapter.Primary.Title,
+			SourceURL:   chapter.Primary.SourceURL,
+			SourceName:  chapter.Primary.SourceName,
+			Script:      chapterScript(chapter.Lines),
+			DurationSec: chapter.DurationSec,
+			AudioFile:   audioFile,
 		})
 	}
 
