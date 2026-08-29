@@ -38,6 +38,22 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 	}
 	defer s.finishGenerating(userID)
 
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	defer cancel()
+
+	previousTopics := make([]string, 0, len(previousChapters))
+	for _, chapter := range previousChapters {
+		previousTopics = append(previousTopics, chapter.Title)
+	}
+	topics, err := pipeline.SelectCachedTopics(ctx, s.database, user.Tags, userID)
+	if err != nil {
+		if writeArticleSelectionError(w, err) {
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "記事キャッシュを取得できません")
+		return
+	}
+
 	today, err := deliveryDate(time.Now(), user.DeliveryTime)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "配信日の計算に失敗しました")
@@ -48,19 +64,6 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
-	defer cancel()
-
-	previousTopics := make([]string, 0, len(previousChapters))
-	for _, chapter := range previousChapters {
-		previousTopics = append(previousTopics, chapter.Title)
-	}
-	articles, err := pipeline.FetchArticles(ctx, s.articleFetcher, user.Tags)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "UPSTREAM_FETCH_FAILED", "記事の取得に失敗しました")
-		return
-	}
-	topics := pipeline.DedupeArticles(articles)
 	selected, changeCount, err := pipeline.ScoreAndSelect(ctx, s.languageModel, topics, user.LengthMinutes, previousTopics)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "UPSTREAM_LLM_FAILED", "台本生成に失敗しました")
@@ -86,7 +89,7 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "生成した音声を保存できません")
 		return
 	}
-	if err := s.database.ReplaceLatestProgramWithIDs(r.Context(), userID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs); err != nil {
+	if err := s.database.ReplaceLatestProgramWithIDsAndSeenTopics(r.Context(), userID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs, pipeline.TopicGroupIDs(selected)); err != nil {
 		_ = s.storage.Delete(programID)
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "番組を保存できません")
 		return

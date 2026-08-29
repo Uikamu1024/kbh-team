@@ -86,6 +86,12 @@ func (d *DB) CreateProgram(ctx context.Context, userID, greetingText string, cha
 // CreateProgramWithIDs is used when audio must be saved before its database
 // rows are committed. The caller owns the UUIDs and final audio paths.
 func (d *DB) CreateProgramWithIDs(ctx context.Context, userID, greetingText string, changeCount int, chapters []domain.ChapterAudio, chapterAudioPaths []string, programID string, chapterIDs []string) error {
+	return d.CreateProgramWithIDsAndSeenTopics(ctx, userID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs, nil)
+}
+
+// CreateProgramWithIDsAndSeenTopics creates a program and records its selected
+// topic groups in the same transaction.
+func (d *DB) CreateProgramWithIDsAndSeenTopics(ctx context.Context, userID, greetingText string, changeCount int, chapters []domain.ChapterAudio, chapterAudioPaths []string, programID string, chapterIDs []string, seenTopicGroupIDs []string) error {
 	if len(chapters) != len(chapterAudioPaths) {
 		return fmt.Errorf("chapter count %d does not match audio path count %d", len(chapters), len(chapterAudioPaths))
 	}
@@ -100,6 +106,9 @@ func (d *DB) CreateProgramWithIDs(ctx context.Context, userID, greetingText stri
 	defer tx.Rollback(ctx)
 
 	if _, _, err := insertProgramWithIDs(ctx, tx, userID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs); err != nil {
+		return err
+	}
+	if err := insertSeenTopics(ctx, tx, userID, seenTopicGroupIDs); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -213,11 +222,17 @@ func (d *DB) GetProgramByID(ctx context.Context, programID string) (Program, []C
 // ReplaceLatestProgram. The caller supplies IDs so audio can be written to
 // its final paths before this transaction changes the database.
 func (d *DB) ReplaceLatestProgramWithIDs(ctx context.Context, userID, greetingText string, changeCount int, chapters []domain.ChapterAudio, chapterAudioPaths []string, programID string, chapterIDs []string) error {
-	_, _, err := d.replaceLatestProgram(ctx, userID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs)
+	return d.ReplaceLatestProgramWithIDsAndSeenTopics(ctx, userID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs, nil)
+}
+
+// ReplaceLatestProgramWithIDsAndSeenTopics replaces the newest program and
+// records the replacement's selected topic groups in one transaction.
+func (d *DB) ReplaceLatestProgramWithIDsAndSeenTopics(ctx context.Context, userID, greetingText string, changeCount int, chapters []domain.ChapterAudio, chapterAudioPaths []string, programID string, chapterIDs []string, seenTopicGroupIDs []string) error {
+	_, _, err := d.replaceLatestProgram(ctx, userID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs, seenTopicGroupIDs)
 	return err
 }
 
-func (d *DB) replaceLatestProgram(ctx context.Context, userID, greetingText string, changeCount int, chapters []domain.ChapterAudio, chapterAudioPaths []string, requestedProgramID string, requestedChapterIDs []string) (string, []string, error) {
+func (d *DB) replaceLatestProgram(ctx context.Context, userID, greetingText string, changeCount int, chapters []domain.ChapterAudio, chapterAudioPaths []string, requestedProgramID string, requestedChapterIDs []string, seenTopicGroupIDs []string) (string, []string, error) {
 	if len(chapters) != len(chapterAudioPaths) {
 		return "", nil, fmt.Errorf("chapter count %d does not match audio path count %d", len(chapters), len(chapterAudioPaths))
 	}
@@ -261,6 +276,9 @@ func (d *DB) replaceLatestProgram(ctx context.Context, userID, greetingText stri
 
 	programID, chapterIDs, err := insertProgramWithIDs(ctx, tx, userID, greetingText, changeCount, chapters, chapterAudioPaths, requestedProgramID, requestedChapterIDs)
 	if err != nil {
+		return "", nil, err
+	}
+	if err := insertSeenTopics(ctx, tx, userID, seenTopicGroupIDs); err != nil {
 		return "", nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -406,4 +424,19 @@ func chapterScript(lines []domain.Line) string {
 		texts = append(texts, line.Text)
 	}
 	return strings.Join(texts, "\n")
+}
+
+func insertSeenTopics(ctx context.Context, tx pgx.Tx, userID string, topicGroupIDs []string) error {
+	for _, topicGroupID := range topicGroupIDs {
+		if strings.TrimSpace(topicGroupID) == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO user_seen_topics (user_id, topic_group_id)
+			VALUES ($1::uuid, $2::uuid)
+			ON CONFLICT (user_id, topic_group_id) DO NOTHING`, userID, topicGroupID); err != nil {
+			return fmt.Errorf("insert seen topic %q: %w", topicGroupID, err)
+		}
+	}
+	return nil
 }

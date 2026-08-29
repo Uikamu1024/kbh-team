@@ -80,12 +80,15 @@ func (s *Server) processBatchUser(user db.User) {
 		return
 	}
 
-	articles, err := pipeline.FetchArticles(ctx, s.articleFetcher, user.Tags)
+	topics, err := pipeline.SelectCachedTopics(ctx, s.database, user.Tags, user.ID)
 	if err != nil {
-		log.Printf("batch: fetch articles for user %s failed: %v", user.ID, err)
+		if errors.Is(err, pipeline.ErrArticleCacheEmpty) || errors.Is(err, pipeline.ErrNoUnseenArticles) {
+			log.Printf("batch: skip user %s: %v", user.ID, err)
+			return
+		}
+		log.Printf("batch: select cached articles for user %s failed: %v", user.ID, err)
 		return
 	}
-	topics := pipeline.DedupeArticles(articles)
 	selected, changeCount, err := pipeline.ScoreAndSelect(ctx, s.languageModel, topics, user.LengthMinutes, previousTopics)
 	if err != nil {
 		log.Printf("batch: score topics for user %s failed: %v", user.ID, err)
@@ -111,7 +114,7 @@ func (s *Server) processBatchUser(user db.User) {
 		log.Printf("batch: save audio for user %s failed: %v", user.ID, err)
 		return
 	}
-	if err := s.database.CreateProgramWithIDs(ctx, user.ID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs); err != nil {
+	if err := s.database.CreateProgramWithIDsAndSeenTopics(ctx, user.ID, greetingText, changeCount, chapters, chapterAudioPaths, programID, chapterIDs, pipeline.TopicGroupIDs(selected)); err != nil {
 		_ = s.storage.Delete(programID)
 		log.Printf("batch: save program for user %s failed: %v", user.ID, err)
 		return

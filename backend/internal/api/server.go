@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"backend/internal/db"
-	"backend/internal/providers/fetcher"
 	"backend/internal/providers/llm"
 	"backend/internal/providers/tts"
 	"backend/internal/storage"
@@ -20,7 +19,6 @@ const defaultVoicevoxURL = "http://localhost:50021"
 type Server struct {
 	database          *db.DB
 	storage           *storage.Storage
-	articleFetcher    fetcher.Fetcher
 	languageModel     llm.LLM
 	speechSynthesizer tts.TTS
 	generatingMu      sync.Mutex
@@ -39,7 +37,6 @@ func New(database *db.DB, fileStorage *storage.Storage) *Server {
 	return &Server{
 		database:          database,
 		storage:           fileStorage,
-		articleFetcher:    fetcher.NewJinaFetcher(nil),
 		languageModel:     languageModel,
 		speechSynthesizer: tts.NewVoicevoxTTS(nil),
 		generatingUsers:   make(map[string]struct{}),
