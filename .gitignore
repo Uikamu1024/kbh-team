@@ -4,6 +4,7 @@
 
 # バックエンド生成物
 /backend/data/
+/backend/debug-output/
 
 # フロントエンド
 /frontend/node_modules/
