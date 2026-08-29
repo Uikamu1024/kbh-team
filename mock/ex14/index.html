@@ -11,12 +11,17 @@
 <div class="phone">
   <div class="app">
 
+    <div class="status-bar" aria-label="端末情報">
+      <span>8:24</span>
+      <div class="status-dots" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+    </div>
+
     <!-- ===== ヘッダー ===== -->
     <header class="topbar">
       <div class="topbar-row">
         <span class="app-name">通学ラジオ</span>
         <div class="topbar-right">
-          <span class="date">2月31日(水)</span>
+        <span class="date">8月29日(土)</span>
         </div>
       </div>
       <button class="back-chevron" id="minimizeBtn" aria-label="閉じる" hidden>
@@ -24,19 +29,72 @@
       </button>
     </header>
 
+    <!-- ===== 初回設定: ユーザー名 ===== -->
+    <main class="screen onboarding-screen" id="screen-onboarding-name" hidden>
+      <div class="onboarding-content">
+        <p class="onboarding-step">はじめての設定 01 / 02</p>
+        <h1 class="onboarding-title">まずは、あなたの<br>名前を教えてください。</h1>
+        <p class="onboarding-description">朝の番組で呼びかける名前として使います。</p>
+        <form id="nameForm" class="onboarding-form">
+          <label class="onboarding-label" for="userNameInput">表示名</label>
+          <input id="userNameInput" class="onboarding-input" type="text" maxlength="20" autocomplete="name" placeholder="例：たろう">
+          <button class="onboarding-button" id="nameNextBtn" type="submit" disabled>次へ</button>
+        </form>
+      </div>
+    </main>
+
+    <!-- ===== 初回設定: 興味関心 ===== -->
+    <main class="screen onboarding-screen" id="screen-onboarding-interests" hidden>
+      <div class="onboarding-content">
+        <p class="onboarding-step">はじめての設定 02 / 02</p>
+        <h1 class="onboarding-title">気になるテーマを<br>2〜3個選んでください。</h1>
+        <p class="onboarding-description">選んだテーマをもとに、毎朝の番組をつくります。</p>
+        <div class="onboarding-tag-grid" id="onboardingTagGrid"></div>
+        <p class="onboarding-counter" id="onboardingCounter">0 / 3 選択中</p>
+        <button class="onboarding-button" id="interestsNextBtn" type="button" disabled>番組をはじめる</button>
+      </div>
+    </main>
+
+    <!-- ===== 初回設定: 番組作成中 ===== -->
+    <main class="screen onboarding-screen generating-screen" id="screen-generating" hidden>
+      <div class="generating-content">
+        <div class="generating-loader" aria-hidden="true"><span></span><span></span><span></span></div>
+        <p class="onboarding-step">今日の番組を準備中</p>
+        <h1 class="onboarding-title">あなた向けのニュースを<br>集めています。</h1>
+        <p class="onboarding-description"><span id="generatingTopics">選んだテーマ</span>から、今朝の話題をまとめています。</p>
+        <div class="generating-status" aria-live="polite">
+          <p class="generating-status-item active" id="generatingStatusOne">ニュースを集めています</p>
+          <p class="generating-status-item" id="generatingStatusTwo">内容を読みやすく整理しています</p>
+          <p class="generating-status-item" id="generatingStatusThree">番組を準備しています</p>
+        </div>
+      </div>
+    </main>
+
     <!-- ===== ホーム画面 ===== -->
     <main class="screen" id="screen-home" data-screen="home">
       <section class="greeting">
-        <p>ゲストさん、おはようございます。<br>今日は<strong id="greetingCount">3</strong>件、動きがあります。</p>
+        <p><span id="greetingName">ゲスト</span>さん、おはようございます。<br>今日は<strong id="greetingCount">3</strong>件、動きがあります。</p>
+      </section>
+
+      <section class="diff-card" aria-label="今日の要点">
+        <strong>今日の要点</strong>
+        <span>関心のあるテーマから、新しい動きを短くまとめています。</span>
       </section>
 
       <section class="play-hero">
+        <p class="hero-kicker">TODAY'S BRIEFING</p>
         <button class="play-hero-btn" id="heroPlayBtn" aria-label="今日の番組を再生">
           <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           <span>再生</span>
         </button>
         <p class="play-hero-caption" id="heroCaption">今日の番組・5チャプター・約12分</p>
       </section>
+
+      <div class="home-tags" aria-label="登録中のテーマ">
+        <span class="home-tag">AI</span>
+        <span class="home-tag">京都</span>
+        <span class="home-tag">ゲーム</span>
+      </div>
 
       <section class="history">
         <h2 class="section-title">履歴</h2>
@@ -86,9 +144,9 @@
     <!-- ===== プロフィール画面 ===== -->
     <main class="screen" id="screen-profile" data-screen="profile" hidden>
       <section class="profile-head">
-        <div class="avatar">G</div>
+        <div class="avatar" id="profileAvatar">G</div>
         <div class="profile-info">
-          <p class="profile-name">ゲストユーザー</p>
+          <p class="profile-name" id="profileName">ゲストユーザー</p>
           <button class="profile-link" id="tagSettingBtn">
             興味・関心を設定
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
@@ -144,6 +202,19 @@
         </div>
       </section>
     </main>
+
+    <aside class="mini-player" id="miniPlayer" aria-label="再生中の番組" hidden>
+      <button class="mini-player-main" id="miniPlayerOpen" type="button">
+        <span class="mini-player-art" aria-hidden="true"><span></span></span>
+        <span class="mini-player-info">
+          <strong id="miniPlayerTitle">再生中のチャプター</strong>
+          <span id="miniPlayerSubtitle">1 / 5</span>
+        </span>
+      </button>
+      <button class="mini-player-toggle" id="miniPlayerToggle" type="button" aria-label="一時停止">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" id="miniPlayerIcon"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+      </button>
+    </aside>
 
     <!-- ===== 下部ナビ ===== -->
     <nav class="bottom-nav">
