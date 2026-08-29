@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, getUser, putUserSettings, putUserTags, regenerateLatestProgram } from "@/lib/api";
 import { useUserId } from "@/lib/useUserId";
-import { getDisplayName } from "@/lib/user";
+import { getDisplayName, setDisplayName as saveDisplayName } from "@/lib/user";
 import { MIN_TAGS } from "@/lib/presetTags";
 import { TagPicker } from "@/components/TagPicker";
 import type { UserProfile } from "@/lib/types";
@@ -21,6 +21,9 @@ export default function Profile() {
   const [toast, setToast] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [displayName, setDisplayNameState] = useState(getDisplayName());
+  const [nameEditorOpen, setNameEditorOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState(displayName);
   const isFirstTagsRender = useRef(true);
   const requestKey = `${userId}:${attempt}`;
 
@@ -99,6 +102,20 @@ export default function Profile() {
     }
   }
 
+  function openNameEditor() {
+    setNameDraft(displayName);
+    setNameEditorOpen(true);
+  }
+
+  function handleSaveName() {
+    const trimmed = nameDraft.trim();
+    const next = trimmed === "" ? displayName : trimmed;
+    saveDisplayName(next);
+    setDisplayNameState(next);
+    setNameEditorOpen(false);
+    showToast("表示名を変更しました");
+  }
+
   if (state.status === "loading") {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -128,10 +145,44 @@ export default function Profile() {
     <div className="pt-4">
       <section className="flex items-center gap-3.5">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-[#0f3d24] text-xl font-bold text-[#06120a]">
-          {getDisplayName().slice(0, 1)}
+          {displayName.slice(0, 1)}
         </div>
-        <div>
-          <p className="m-0 mb-1.5 text-base font-bold">{getDisplayName()}</p>
+        <div className="min-w-0 flex-1">
+          {nameEditorOpen ? (
+            <div className="mb-1.5 flex items-center gap-2">
+              <input
+                type="text"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveName();
+                  if (e.key === "Escape") setNameEditorOpen(false);
+                }}
+                maxLength={20}
+                autoFocus
+                className="min-w-0 flex-1 rounded-lg border border-bg-elevated-3 bg-bg-elevated-2 px-2.5 py-1.5 text-sm font-semibold text-text-primary"
+              />
+              <button
+                type="button"
+                onClick={handleSaveName}
+                className="shrink-0 rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-[#06120a]"
+              >
+                保存
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={openNameEditor}
+              className="mb-1.5 flex items-center gap-1.5 border-0 bg-transparent p-0 text-left text-base font-bold text-text-primary hover:text-accent"
+            >
+              {displayName}
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setTagEditorOpen((v) => !v)}

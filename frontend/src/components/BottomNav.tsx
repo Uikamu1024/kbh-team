@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 const TABS = [
@@ -23,12 +24,13 @@ const TABS = [
   },
 ] as const;
 
-export function BottomNav() {
+export const BottomNav = forwardRef<HTMLElement>(function BottomNav(_props, ref) {
   const location = useLocation();
 
   return (
     <nav
-      className="flex shrink-0 border-t border-bg-elevated-2 bg-bg/95 backdrop-blur-md"
+      ref={ref}
+      className="fixed inset-x-0 bottom-0 z-10 flex border-t border-bg-elevated-2 bg-bg/95 backdrop-blur-md"
       style={{ paddingBottom: "max(8px, env(safe-area-inset-bottom))" }}
     >
       {TABS.map((tab) => {
@@ -59,4 +61,4 @@ export function BottomNav() {
       })}
     </nav>
   );
-}
+});

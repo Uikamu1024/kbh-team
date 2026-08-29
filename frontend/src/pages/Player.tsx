@@ -3,12 +3,18 @@ import { useSearchParams } from "react-router-dom";
 import { getAudioUrl, getLatestProgram, getProgram } from "@/lib/api";
 import { useUserId } from "@/lib/useUserId";
 import { formatSecondsAsClock } from "@/lib/format";
+import { concatenateWavBuffers } from "@/lib/wav";
 import type { Program } from "@/lib/types";
 
+// バックエンドはチャプターごとに別々の音声ファイルを配信するが（audioUrl参照）、
+// <audio>のsrcをチャプターごとに切り替えて連続再生しようとすると、切り替えの
+// たびにplay()を呼び直す必要がありブラウザの自動再生制限で止まってしまう。
+// そのため全チャプターの音声を一度取得し、1本のWAVに結合して単一の<audio>で
+// 再生する（最初の1回のplay()だけで最後まで通しで再生できる）。
 type LoadState =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; program: Program };
+  | { status: "ready"; program: Program; audioUrl: string; chapterDurations: number[] };
 
 const WAVEFORM_BAR_COUNT = 48;
 
@@ -37,12 +43,11 @@ export default function Player() {
 
   const { userId } = useUserId();
   const [result, setResult] = useState<{ key: string; state: LoadState } | null>(null);
-  const [chapterIndex, setChapterIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [attempt, setAttempt] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const requestedAutoplay = useRef(false);
+  const objectUrlRef = useRef<string | null>(null);
   const requestKey = `${programIdParam}:${userId}:${attempt}`;
 
   useEffect(() => {
@@ -58,10 +63,25 @@ export default function Player() {
     if (!load) return;
 
     load
-      .then((program) => {
+      .then(async (program) => {
+        if (program.chapters.length === 0) throw new Error("no chapters");
+        const buffers = await Promise.all(
+          program.chapters.map((c) =>
+            fetch(getAudioUrl(program.id, c.id)).then((res) => {
+              if (!res.ok) throw new Error(`audio fetch failed: ${res.status}`);
+              return res.arrayBuffer();
+            }),
+          ),
+        );
         if (cancelled) return;
-        setResult({ key, state: { status: "ready", program } });
-        setChapterIndex(0);
+        const { blob, chapterDurations } = concatenateWavBuffers(buffers);
+
+        if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+        const audioUrl = URL.createObjectURL(blob);
+        objectUrlRef.current = audioUrl;
+
+        setResult({ key, state: { status: "ready", program, audioUrl, chapterDurations } });
+        setCurrentTime(0);
       })
       .catch(() => {
         if (!cancelled) setResult({ key, state: { status: "error" } });
@@ -72,10 +92,36 @@ export default function Player() {
     };
   }, [programIdParam, userId, attempt]);
 
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    };
+  }, []);
+
   const state: LoadState = result?.key === requestKey ? result.state : { status: "loading" };
 
   const program = state.status === "ready" ? state.program : null;
+  const chapterDurations = state.status === "ready" ? state.chapterDurations : [];
+  // 各チャプターの結合トラック内での開始時刻（秒）。boundaries[i] <= currentTime
+  // となる最後のiが現在のチャプター。チャプター数は数件程度なのでメモ化はせず
+  // 毎レンダー計算する。
+  const chapterBoundaries: number[] = [];
+  {
+    let acc = 0;
+    for (const duration of chapterDurations) {
+      chapterBoundaries.push(acc);
+      acc += duration;
+    }
+  }
+
+  let chapterIndex = 0;
+  for (let i = 0; i < chapterBoundaries.length; i++) {
+    if (currentTime >= chapterBoundaries[i]) chapterIndex = i;
+  }
+
   const chapter = program?.chapters[chapterIndex] ?? null;
+  const chapterStart = chapterBoundaries[chapterIndex] ?? 0;
+  const chapterElapsed = Math.max(0, currentTime - chapterStart);
   const lines = useMemo(
     () => (chapter ? chapter.script.split("\n").filter((line) => line.trim() !== "") : []),
     [chapter],
@@ -85,22 +131,17 @@ export default function Player() {
     [chapter],
   );
 
-  // チャプターが変わるたびに音声を読み込み直す
+  // 結合済みの音声が新しく読み込まれた直後、autoplay指定があれば1回だけ再生開始する。
+  // 以降チャプターが進んでも同じ<audio>が鳴り続けるだけなのでplay()の再呼び出しは不要
+  // （チャプターごとにsrcを切り替えていた旧実装では、この再呼び出しが自動再生制限に
+  // 引っかかって連続再生できなかった）。
   useEffect(() => {
-    if (!program || !chapter || !audioRef.current) return;
-    const audio = audioRef.current;
-    audio.src = getAudioUrl(program.id, chapter.id);
-    audio.load();
-    setCurrentTime(0);
-
-    if (isPlaying || (autoplay && !requestedAutoplay.current)) {
-      requestedAutoplay.current = true;
-      audio.play().catch(() => setIsPlaying(false));
+    if (state.status !== "ready" || !audioRef.current) return;
+    if (autoplay) {
+      audioRef.current.play().catch(() => setIsPlaying(false));
     }
-    // program/chapter全体やisPlaying/autoplayを依存に含めると、再生中の状態変化のたびに
-    // 音声を読み込み直してしまうため、意図的にid変化時のみ実行させている
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [program?.id, chapter?.id]);
+  }, [state.status === "ready" ? state.audioUrl : null]);
 
   function togglePlay() {
     const audio = audioRef.current;
@@ -113,25 +154,23 @@ export default function Player() {
   }
 
   function goToChapter(index: number) {
-    if (!program) return;
-    const total = program.chapters.length;
-    setChapterIndex(((index % total) + total) % total);
+    const audio = audioRef.current;
+    if (!audio || chapterBoundaries.length === 0) return;
+    const total = chapterBoundaries.length;
+    const target = ((index % total) + total) % total;
+    audio.currentTime = chapterBoundaries[target];
+    setCurrentTime(chapterBoundaries[target]);
   }
 
   function handleEnded() {
-    if (!program) return;
-    const isLast = chapterIndex === program.chapters.length - 1;
-    if (isLast) {
-      setIsPlaying(false);
-      return;
-    }
-    goToChapter(chapterIndex + 1);
+    setIsPlaying(false);
   }
 
   function handleSeek(ratio: number) {
     const audio = audioRef.current;
-    if (!audio || !chapter) return;
-    audio.currentTime = ratio * chapter.durationSec;
+    const duration = chapterDurations[chapterIndex];
+    if (!audio || !chapter || duration === undefined) return;
+    audio.currentTime = chapterStart + ratio * duration;
   }
 
   if (state.status === "loading") {
@@ -157,7 +196,8 @@ export default function Player() {
     );
   }
 
-  const progressRatio = chapter.durationSec > 0 ? currentTime / chapter.durationSec : 0;
+  const chapterDuration = chapterDurations[chapterIndex] ?? chapter.durationSec;
+  const progressRatio = chapterDuration > 0 ? chapterElapsed / chapterDuration : 0;
   const activeLineIndex = Math.min(
     lines.length - 1,
     Math.floor(progressRatio * lines.length),
@@ -168,6 +208,7 @@ export default function Player() {
     <div className="pt-2">
       <audio
         ref={audioRef}
+        src={state.status === "ready" ? state.audioUrl : undefined}
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
@@ -238,7 +279,7 @@ export default function Player() {
           ))}
         </div>
         <div className="mt-1 flex justify-between text-[11px] text-text-tertiary">
-          <span>{formatSecondsAsClock(currentTime)}</span>
+          <span>{formatSecondsAsClock(chapterElapsed)}</span>
           <span>{formatSecondsAsClock(chapter.durationSec)}</span>
         </div>
       </div>

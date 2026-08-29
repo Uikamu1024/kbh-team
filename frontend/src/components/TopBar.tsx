@@ -1,14 +1,18 @@
+import { forwardRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { formatDateLabel } from "@/lib/format";
 
-export function TopBar() {
+export const TopBar = forwardRef<HTMLElement>(function TopBar(_props, ref) {
   const navigate = useNavigate();
   const location = useLocation();
   const showBack = location.pathname.startsWith("/player");
   const today = formatDateLabel(new Date().toISOString());
 
   return (
-    <header className="shrink-0 px-5 pb-2 pt-4">
+    <header
+      ref={ref}
+      className="fixed inset-x-0 top-0 z-10 bg-bg/95 px-5 pb-2 pt-4 backdrop-blur-md"
+    >
       <div className="flex items-center justify-between">
         <span className="text-[17px] font-bold tracking-tight">通学ラジオ</span>
         <span className="text-[13px] text-text-secondary">{today}</span>
@@ -27,4 +31,4 @@ export function TopBar() {
       )}
     </header>
   );
-}
+});
