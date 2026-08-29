@@ -1,38 +1,36 @@
-# フィード設定ファイル（`article.json`）
+# フィード設定ファイル（`rss.json`）
 
-**想定パス**: `/backend/config/article.json`
+**想定パス**: `/config/rss.json`（リポジトリ直下。バックエンドからは`cmd/ingest`実行時のカレントディレクトリ（`backend/`）基準で`../config/rss.json`として読む）
 
 **改訂(2026-08-29)**：タグをフィード単位で決め打ちする方式をやめ、記事の中身をLLMに読ませてタグ判定させる方式に変更した（詳細は[02-ingestion.md](02-ingestion.md)）。これに伴い、フィード設定から`tags`フィールドを削除し、収集元の情報だけを持つ最小限の形に単純化する。
+
+**改訂(2026-08-30)**：スキーマを`{"feeds": [...]}`というオブジェクトのラップから、フラットな配列にさらに単純化した。合わせて`origin`フィールド（コード上どこからも参照されていなかった）を削除する。
 
 ## スキーマ
 
 ```json
-{
-  "feeds": [
-    {
-      "id": "itmedia-aiplus",
-      "url": "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml",
-      "origin": "itmedia.co.jp",
-      "title": "ITmedia AI+"
-    },
-    {
-      "id": "4gamer",
-      "url": "https://www.4gamer.net/rss/index.xml",
-      "origin": "4gamer.net",
-      "title": "4Gamer.net"
-    }
-  ]
-}
+[
+  {
+    "title": "ITmedia AI+",
+    "id": "itmedia-aiplus",
+    "url": "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml",
+    "enabled": true
+  },
+  {
+    "title": "4Gamer.net",
+    "id": "4gamer",
+    "url": "https://www.4gamer.net/rss/index.xml",
+    "enabled": true
+  }
+]
 ```
 
 | フィールド | 説明 |
 | --- | --- |
+| `title` | そのフィード自体の表示名（RSSの`<channel><title>`相当。記事の`source_name`に使う） |
 | `id` | フィードの一意な識別子（人間が読めるslug。DBの`articles.feed_id`に記録し、障害調査時にどのフィードが原因か追えるようにする） |
 | `url` | RSSフィードのURL |
-| `origin` | 発行元サイトのドメイン等の識別子（同じサイトが複数フィードを持つ場合にグルーピングできるようにする。例：`itmedia.co.jp`配下に`aiplus`・`news`等複数フィードがある） |
-| `title` | そのフィード自体の表示名（RSSの`<channel><title>`相当。記事の`source_name`に使う） |
-
-`enabled`フィールドは残す（一時的にフィードを外す用途、既存のまま）。
+| `enabled` | `false`にすると収集ジョブがこのフィードをスキップする（一時的に壊れたフィードを外す用途） |
 
 ## タグは記事ごとにLLMが判定する（フィード設定からは削除）
 

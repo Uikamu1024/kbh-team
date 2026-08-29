@@ -1,32 +1,1922 @@
-{
-  "feeds": [
-    {
-      "id": "itmedia-aiplus",
-      "url": "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml",
-      "origin": "itmedia.co.jp",
-      "title": "ITmedia AI+",
-      "enabled": true
-    },
-    {
-      "id": "itmedia-news",
-      "url": "https://rss.itmedia.co.jp/rss/2.0/news_bursts.xml",
-      "origin": "itmedia.co.jp",
-      "title": "ITmedia NEWS",
-      "enabled": true
-    },
-    {
-      "id": "4gamer",
-      "url": "https://www.4gamer.net/rss/index.xml",
-      "origin": "4gamer.net",
-      "title": "4Gamer.net",
-      "enabled": true
-    },
-    {
-      "id": "karasuma-keizai",
-      "url": "https://karasuma.keizai.biz/rss.xml",
-      "origin": "keizai.biz",
-      "title": "烏丸経済新聞",
-      "enabled": true
-    }
-  ]
-}
+[
+  {
+    "title": "BASEプロダクトチームブログ",
+    "id": "devblog-thebase-in",
+    "url": "https://devblog.thebase.in/feed",
+    "enabled": true
+  },
+  {
+    "title": "Scalar Solution Engineer Blog",
+    "id": "zenn-scalar-sol-blog",
+    "url": "https://zenn.dev/p/scalar_sol_blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "APC 技術ブログ",
+    "id": "techblog-ap",
+    "url": "https://techblog.ap-com.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "コラボスタイル Developers",
+    "id": "zenn-collabostyle",
+    "url": "https://zenn.dev/p/collabostyle/feed",
+    "enabled": true
+  },
+  {
+    "title": "ヘッドウォータース",
+    "id": "zenn-headwaters",
+    "url": "https://zenn.dev/p/headwaters/feed",
+    "enabled": true
+  },
+  {
+    "title": "CloudNative BLOGs",
+    "id": "blog-cloudnative",
+    "url": "https://blog.cloudnative.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "CareNet Engineers",
+    "id": "zenn-carenet",
+    "url": "https://zenn.dev/p/carenet/feed",
+    "enabled": true
+  },
+  {
+    "title": "サーバーワークスエンジニアブログ",
+    "id": "blog-serverworks",
+    "url": "https://blog.serverworks.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "クラウドエース株式会社さん",
+    "id": "zenn-cloud-ace",
+    "url": "https://zenn.dev/cloud_ace/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社アクトビ",
+    "id": "zenn-actbe-tech",
+    "url": "https://zenn.dev/p/actbe_tech/feed",
+    "enabled": true
+  },
+  {
+    "title": "vicc blog",
+    "id": "blog-vicc",
+    "url": "https://blog.vicc.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "TechHarmony",
+    "id": "blog-usize-tech",
+    "url": "https://blog.usize-tech.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "wwwave's Techblog",
+    "id": "zenn-wwwave",
+    "url": "https://zenn.dev/p/wwwave/feed",
+    "enabled": true
+  },
+  {
+    "title": "LayerX エンジニアブログ",
+    "id": "tech-layerx",
+    "url": "https://tech.layerx.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社ソニックムーブ",
+    "id": "zenn-sonicmoov",
+    "url": "https://zenn.dev/p/sonicmoov/feed",
+    "enabled": true
+  },
+  {
+    "title": "MicroAd Developers Blog",
+    "id": "developers-microad",
+    "url": "https://developers.microad.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "シナプス技術者ブログ",
+    "id": "tech-synapse",
+    "url": "https://tech.synapse.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "NCDC テックブログ",
+    "id": "zenn-ncdc",
+    "url": "https://zenn.dev/p/ncdc/feed",
+    "enabled": true
+  },
+  {
+    "title": "Hacobuテックブログ",
+    "id": "zenn-hacobu",
+    "url": "https://zenn.dev/p/hacobu/feed",
+    "enabled": true
+  },
+  {
+    "title": "TechRacho",
+    "id": "techracho-bpsinc",
+    "url": "https://techracho.bpsinc.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "ZOZO TECH BLOG",
+    "id": "techblog-zozo",
+    "url": "https://techblog.zozo.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社ログラス テックブログ",
+    "id": "zenn-loglass",
+    "url": "https://zenn.dev/p/loglass/feed",
+    "enabled": true
+  },
+  {
+    "title": "リーナー開発者ブログ",
+    "id": "developer-leaner",
+    "url": "https://developer.leaner.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "SHIFT Group 技術ブログ",
+    "id": "note-shiftinc",
+    "url": "https://note.shiftinc.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "every Tech Blog",
+    "id": "tech-every-tv",
+    "url": "https://tech.every.tv/feed",
+    "enabled": true
+  },
+  {
+    "title": "エムスリーテックブログ",
+    "id": "m3tech",
+    "url": "https://www.m3tech.blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "PrAha",
+    "id": "zenn-praha",
+    "url": "https://zenn.dev/p/praha/feed",
+    "enabled": true
+  },
+  {
+    "title": "インゲージ開発者ブログ",
+    "id": "blog-ingage",
+    "url": "https://blog.ingage.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "RAKUS Developers Blog | ラクス エンジニアブログ",
+    "id": "tech-blog-rakus",
+    "url": "https://tech-blog.rakus.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "楽天カード テックブログ",
+    "id": "zenn-rakutencardtech",
+    "url": "https://zenn.dev/p/rakutencardtech/feed",
+    "enabled": true
+  },
+  {
+    "title": "Zenet Tech Blog",
+    "id": "media-zenet-web",
+    "url": "https://media.zenet-web.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "フレクトのクラウドblog",
+    "id": "cloud-flect",
+    "url": "https://cloud.flect.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "ELW株式会社 テックブログ",
+    "id": "techblog-elw",
+    "url": "https://techblog.elw.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "JBS Tech Blog",
+    "id": "blog-jbs",
+    "url": "https://blog.jbs.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Aiming 開発者ブログ",
+    "id": "developer-aiming-inc",
+    "url": "https://developer.aiming-inc.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "JX通信社エンジニアブログ",
+    "id": "tech-jxpress",
+    "url": "https://tech.jxpress.net/feed",
+    "enabled": true
+  },
+  {
+    "title": "SODA Engineering Blog",
+    "id": "zenn-team-soda",
+    "url": "https://zenn.dev/p/team_soda/feed",
+    "enabled": true
+  },
+  {
+    "title": "Link and Motivation Developers' Blog",
+    "id": "link-and-motivation-hatenablog",
+    "url": "https://link-and-motivation.hatenablog.com/rss",
+    "enabled": true
+  },
+  {
+    "title": "Finatext Tech Blog",
+    "id": "zenn-finatext",
+    "url": "https://zenn.dev/p/finatext/feed",
+    "enabled": true
+  },
+  {
+    "title": "Uzabase for Engineers",
+    "id": "tech-uzabase",
+    "url": "https://tech.uzabase.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "SmartHR Tech Blog",
+    "id": "tech-smarthr",
+    "url": "https://tech.smarthr.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "DMM Developers Blog",
+    "id": "developersblog-dmm",
+    "url": "https://developersblog.dmm.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "JMDC TECH BLOG",
+    "id": "techblog-jmdc",
+    "url": "https://techblog.jmdc.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Knowledge Work Developers Blog",
+    "id": "note-knowledgework",
+    "url": "https://note.com/knowledgework/rss",
+    "enabled": true
+  },
+  {
+    "title": "弥生開発者ブログ",
+    "id": "tech-blog-yayoi-kk",
+    "url": "https://tech-blog.yayoi-kk.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "NTT docomo Business Engineers' Blog",
+    "id": "engineers-ntt",
+    "url": "https://engineers.ntt.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "アサイン",
+    "id": "zenn-assign",
+    "url": "https://zenn.dev/p/assign/feed",
+    "enabled": true
+  },
+  {
+    "title": "ABEJA Tech Blog",
+    "id": "tech-blog-abeja-asia",
+    "url": "https://tech-blog.abeja.asia/feed",
+    "enabled": true
+  },
+  {
+    "title": "アルダグラム Tech Blog",
+    "id": "zenn-aldagram-tech",
+    "url": "https://zenn.dev/p/aldagram_tech/feed",
+    "enabled": true
+  },
+  {
+    "title": "Sansan Tech Blog",
+    "id": "buildersbox-corp-sansan",
+    "url": "https://buildersbox.corp-sansan.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "Morpho Tech Blog",
+    "id": "techblog-morphoinc",
+    "url": "https://techblog.morphoinc.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "YOUTRUST Tech Blog",
+    "id": "tech-youtrust",
+    "url": "https://tech.youtrust.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社メンバーズ AIフォーオールカンパニー",
+    "id": "zenn-aiforall",
+    "url": "https://zenn.dev/p/aiforall/feed",
+    "enabled": true
+  },
+  {
+    "title": "Fenrir Engineers",
+    "id": "engineers-fenrir-inc",
+    "url": "https://engineers.fenrir-inc.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "techtekt（テックテクト） | パーソルキャリアのエンジニアブログ",
+    "id": "techtekt-persol-career",
+    "url": "https://techtekt.persol-career.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "SIOS Tech Lab",
+    "id": "tech-lab-sios",
+    "url": "https://tech-lab.sios.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Fusic 技術ブログ",
+    "id": "zenn-fusic",
+    "url": "https://zenn.dev/p/fusic/feed",
+    "enabled": true
+  },
+  {
+    "title": "TOKIUMプロダクトチーム テックブログ",
+    "id": "zenn-tokium-dev",
+    "url": "https://zenn.dev/p/tokium_dev/feed",
+    "enabled": true
+  },
+  {
+    "title": "G-gen Tech Blog",
+    "id": "blog-g-gen",
+    "url": "https://blog.g-gen.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "KENTEM TechBlog",
+    "id": "tech-kentem",
+    "url": "https://tech.kentem.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "豆蔵デベロッパーサイト",
+    "id": "developer-mamezou-tech",
+    "url": "https://developer.mamezou-tech.com/feed/feed",
+    "enabled": true
+  },
+  {
+    "title": "Agent Grow Tech Notes",
+    "id": "zenn-agent-grow",
+    "url": "https://zenn.dev/p/agent_grow/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社インフォメーション・ディベロプメント",
+    "id": "zenn-idnet",
+    "url": "https://zenn.dev/p/idnet/feed",
+    "enabled": true
+  },
+  {
+    "title": "Findy Tech Blog",
+    "id": "tech-findy",
+    "url": "https://tech.findy.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社LIG(リグ)｜DX支援・システム開発・Web制作テック の記事一覧",
+    "id": "liginc-technology",
+    "url": "https://liginc.co.jp/technology/feed",
+    "enabled": true
+  },
+  {
+    "title": "Pepabo Tech Portal",
+    "id": "tech-pepabo",
+    "url": "https://tech.pepabo.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "フューチャー技術ブログ",
+    "id": "future-architect-github",
+    "url": "https://future-architect.github.io/feed.xml",
+    "enabled": true
+  },
+  {
+    "title": "fltech - 富士通研究所の技術ブログ",
+    "id": "blog-fltech",
+    "url": "https://blog.fltech.dev/feed",
+    "enabled": true
+  },
+  {
+    "title": "Omiai Tech Blog",
+    "id": "zenn-omiai-techblog",
+    "url": "https://zenn.dev/p/omiai_techblog/feed",
+    "enabled": true
+  },
+  {
+    "title": "Nishika Tech Blog",
+    "id": "zenn-team-nishika",
+    "url": "https://zenn.dev/p/team_nishika/feed",
+    "enabled": true
+  },
+  {
+    "title": "GENIEE TechBlog",
+    "id": "zenn-geniee",
+    "url": "https://zenn.dev/p/geniee/feed",
+    "enabled": true
+  },
+  {
+    "title": "Tech Blog - Turing",
+    "id": "zenn-turing-motors",
+    "url": "https://zenn.dev/p/turing_motors/feed",
+    "enabled": true
+  },
+  {
+    "title": "Gemcook Tech Blog",
+    "id": "zenn-gemcook",
+    "url": "https://zenn.dev/p/gemcook/feed",
+    "enabled": true
+  },
+  {
+    "title": "TechDoctor開発者Blog",
+    "id": "techblog-technology-doctor",
+    "url": "https://techblog.technology-doctor.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "TalentX Tech Blog",
+    "id": "tech-talentx",
+    "url": "https://tech.talentx.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Mackerel ブログ #mackerelio",
+    "id": "mackerel",
+    "url": "https://mackerel.io/ja/blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "kickflow Tech Blog",
+    "id": "tech-kickflow",
+    "url": "https://tech.kickflow.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "DENET 技術ブログ",
+    "id": "blog-denet",
+    "url": "https://blog.denet.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "リゾームのテックブログ",
+    "id": "tech-rhizome-e",
+    "url": "https://tech.rhizome-e.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "エンジニアリング | Nulab (Japanese)",
+    "id": "nulab-ja",
+    "url": "https://nulab.com/ja/feed",
+    "enabled": true
+  },
+  {
+    "title": "コミューン株式会社",
+    "id": "zenn-dev-commune",
+    "url": "https://zenn.dev/p/dev_commune/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社エクスプラザ",
+    "id": "zenn-explaza",
+    "url": "https://zenn.dev/p/explaza/feed",
+    "enabled": true
+  },
+  {
+    "title": "スパイダープラス Tech Blog",
+    "id": "techblog-spiderplus",
+    "url": "https://techblog.spiderplus.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社サイバーセキュリティクラウド テックブログ",
+    "id": "zenn-cscloud-blog",
+    "url": "https://zenn.dev/p/cscloud_blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "エクサウィザーズ Tech Blog",
+    "id": "zenn-exwzd",
+    "url": "https://zenn.dev/p/exwzd/feed",
+    "enabled": true
+  },
+  {
+    "title": "DTダイナミクス テックブログ",
+    "id": "techblog-dt-dynamics",
+    "url": "https://techblog.dt-dynamics.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "KAKEHASHI Tech Blog",
+    "id": "kakehashi-dev-hatenablog",
+    "url": "https://kakehashi-dev.hatenablog.com/rss",
+    "enabled": true
+  },
+  {
+    "title": "ドワンゴ教育サービス開発者ブログ",
+    "id": "blog-nnn",
+    "url": "https://blog.nnn.dev/feed",
+    "enabled": true
+  },
+  {
+    "title": "SRE Holdings 株式会社",
+    "id": "zenn-sre-holdings",
+    "url": "https://zenn.dev/p/sre_holdings/feed",
+    "enabled": true
+  },
+  {
+    "title": "asoview! Tech Blog",
+    "id": "tech-asoview",
+    "url": "https://tech.asoview.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "GENDA",
+    "id": "zenn-genda-jp",
+    "url": "https://zenn.dev/p/genda_jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Visional Engineering Blog",
+    "id": "engineering-visional",
+    "url": "https://engineering.visional.inc/blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "フェズ開発ブログ",
+    "id": "zenn-fez-tech",
+    "url": "https://zenn.dev/p/fez_tech/feed",
+    "enabled": true
+  },
+  {
+    "title": "NTT DATA TECH",
+    "id": "zenn-nttdata-tech",
+    "url": "https://zenn.dev/p/nttdata_tech/feed",
+    "enabled": true
+  },
+  {
+    "title": "Linc'well, inc.",
+    "id": "zenn-lincwell-inc",
+    "url": "https://zenn.dev/p/lincwell_inc/feed",
+    "enabled": true
+  },
+  {
+    "title": "分析屋",
+    "id": "note-bunsekiya-tech",
+    "url": "https://note.com/bunsekiya_tech/rss",
+    "enabled": true
+  },
+  {
+    "title": "IIJ Engineers Blog",
+    "id": "eng-blog-iij-ad",
+    "url": "https://eng-blog.iij.ad.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Cybozu Inside Out | サイボウズエンジニアのブログ",
+    "id": "blog-cybozu",
+    "url": "https://blog.cybozu.io/feed",
+    "enabled": true
+  },
+  {
+    "title": "テコテック開発者ブログ",
+    "id": "tec-tecotec",
+    "url": "https://tec.tecotec.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社ハートビーツ（HEARTBEATS Corporation）",
+    "id": "heartbeats",
+    "url": "https://heartbeats.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Hacobell Developers Blog",
+    "id": "zenn-hacobell-dev",
+    "url": "https://zenn.dev/p/hacobell_dev/feed",
+    "enabled": true
+  },
+  {
+    "title": "NE株式会社の開発ブログ",
+    "id": "zenn-neinc-tech",
+    "url": "https://zenn.dev/p/neinc_tech/feed",
+    "enabled": true
+  },
+  {
+    "title": "TECHSCORE BLOG",
+    "id": "blog-techscore",
+    "url": "https://blog.techscore.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "ROBOT PAYMENT TECH-BLOG",
+    "id": "tech-robotpayment",
+    "url": "https://tech.robotpayment.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Blog on DeNA Engineering",
+    "id": "engineering-dena",
+    "url": "https://engineering.dena.com/blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "ククログ",
+    "id": "clear-code",
+    "url": "https://www.clear-code.com/blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社マインディア テックブログ",
+    "id": "zenn-minedia",
+    "url": "https://zenn.dev/p/minedia/feed",
+    "enabled": true
+  },
+  {
+    "title": "MNTSQ Techブログ",
+    "id": "tech-mntsq",
+    "url": "https://tech.mntsq.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "ITANDI Engineer Blog",
+    "id": "tech-itandi",
+    "url": "https://tech.itandi.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Oisix Creator's Blog",
+    "id": "creators-oisix",
+    "url": "https://creators.oisix.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Sun* Developers",
+    "id": "zenn-sun-asterisk",
+    "url": "https://zenn.dev/p/sun_asterisk/feed",
+    "enabled": true
+  },
+  {
+    "title": "テックブログ - HapInS Developers Blog",
+    "id": "blog-hapins",
+    "url": "https://blog.hapins.net/archive/category/%E3%83%86%E3%83%83%E3%82%AF%E3%83%96%E3%83%AD%E3%82%B0/feed",
+    "enabled": true
+  },
+  {
+    "title": "Generative Agents Tech Blog",
+    "id": "blog-generative-agents",
+    "url": "https://blog.generative-agents.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "ENGINEER TECH BLOG",
+    "id": "note-wingarc",
+    "url": "https://note.wingarc.com/m/m1d39b8a5d9be/feed",
+    "enabled": true
+  },
+  {
+    "title": "jinjerテックブログ",
+    "id": "zenn-jinjer-techblog",
+    "url": "https://zenn.dev/p/jinjer_techblog/feed",
+    "enabled": true
+  },
+  {
+    "title": "Adwaysエンジニアブログ",
+    "id": "blog-engineer-adways",
+    "url": "https://blog.engineer.adways.net/feed",
+    "enabled": true
+  },
+  {
+    "title": "バイセル Tech Blog",
+    "id": "tech-buysell-technologies",
+    "url": "https://tech.buysell-technologies.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "NEXTSCAPE blog",
+    "id": "blog-nextscape",
+    "url": "https://blog.nextscape.net/feed",
+    "enabled": true
+  },
+  {
+    "title": "LINEヤフー Tech Blog",
+    "id": "techblog-lycorp",
+    "url": "https://techblog.lycorp.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Bitkey Developers",
+    "id": "zenn-bitkey-dev",
+    "url": "https://zenn.dev/p/bitkey_dev/feed",
+    "enabled": true
+  },
+  {
+    "title": "WonderPlanet Developers' Blog",
+    "id": "developers-wonderpla",
+    "url": "https://developers.wonderpla.net/feed",
+    "enabled": true
+  },
+  {
+    "title": "CADDi Tech Blog",
+    "id": "caddi-tech",
+    "url": "https://caddi.tech/feed",
+    "enabled": true
+  },
+  {
+    "title": "GMO Developers",
+    "id": "developers-gmo",
+    "url": "https://developers.gmo.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Hatena Developer Blog",
+    "id": "developer-hatenastaff",
+    "url": "https://developer.hatenastaff.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "ブログ – 株式会社ロジカルビート",
+    "id": "logicalbeat",
+    "url": "https://logicalbeat.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Qiita Zine",
+    "id": "qiita-official-columns",
+    "url": "https://qiita.com/official-columns/feed",
+    "enabled": true
+  },
+  {
+    "title": "techblog | 株式会社i-Vinci",
+    "id": "i-vinci",
+    "url": "https://www.i-vinci.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社GA technologies",
+    "id": "zenn-gatechnologies",
+    "url": "https://zenn.dev/p/gatechnologies/feed",
+    "enabled": true
+  },
+  {
+    "title": "stmn tech blog",
+    "id": "tech-stmn",
+    "url": "https://tech.stmn.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "NRIネットコムBlog",
+    "id": "tech-nri-net",
+    "url": "https://tech.nri-net.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "スマートスタイル TECH BLOG",
+    "id": "blog-s-style",
+    "url": "https://blog.s-style.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "CyberAgent Developers Blog",
+    "id": "developers-cyberagent",
+    "url": "https://developers.cyberagent.co.jp/blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "Insight Edge Tech Blog",
+    "id": "techblog-insightedge",
+    "url": "https://techblog.insightedge.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Studyplus Engineering Blog",
+    "id": "tech-studyplus",
+    "url": "https://tech.studyplus.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "ソフトバンク テックブログ（公式）",
+    "id": "zenn-softbank",
+    "url": "https://zenn.dev/p/softbank/feed",
+    "enabled": true
+  },
+  {
+    "title": "MOTEX TECH BLOG",
+    "id": "tech-motex",
+    "url": "https://tech.motex.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "LIVESENSE ENGINEER BLOG",
+    "id": "made-livesense",
+    "url": "https://made.livesense.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "エニグモ開発者ブログ",
+    "id": "tech-enigmo",
+    "url": "https://tech.enigmo.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Algomatic Tech Blog",
+    "id": "tech-algomatic",
+    "url": "https://tech.algomatic.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "赤帽エンジニアブログ",
+    "id": "rheb-hatenablog",
+    "url": "https://rheb.hatenablog.com/rss",
+    "enabled": true
+  },
+  {
+    "title": "Social PLUS Tech Blog",
+    "id": "zenn-socialplus",
+    "url": "https://zenn.dev/p/socialplus/feed",
+    "enabled": true
+  },
+  {
+    "title": "エンジニアブログ - GMOインターネットグループ グループ研究開発本部",
+    "id": "recruit-group-gmo",
+    "url": "https://recruit.group.gmo/engineer/jisedai/feed",
+    "enabled": true
+  },
+  {
+    "title": "スタディサプリ Product Team Blog",
+    "id": "blog-studysapuri",
+    "url": "https://blog.studysapuri.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "atama plus techblog",
+    "id": "zenn-atamaplus",
+    "url": "https://zenn.dev/p/atamaplus/feed",
+    "enabled": true
+  },
+  {
+    "title": "Yappli Tech Blog",
+    "id": "tech-yappli",
+    "url": "https://tech.yappli.io/feed",
+    "enabled": true
+  },
+  {
+    "title": "Stanby Tech Blog",
+    "id": "techblog-stanby",
+    "url": "https://techblog.stanby.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "mediba テックブログ",
+    "id": "zenn-mediba",
+    "url": "https://zenn.dev/p/mediba/feed",
+    "enabled": true
+  },
+  {
+    "title": "NIFTY engineering",
+    "id": "engineering-nifty",
+    "url": "https://engineering.nifty.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "ForgeVision Engineer Blog",
+    "id": "techblog-forgevision",
+    "url": "https://techblog.forgevision.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "ONE CAREER Tech Blog",
+    "id": "note-dev-onecareer",
+    "url": "https://note.com/dev_onecareer/rss",
+    "enabled": true
+  },
+  {
+    "title": "LayerX",
+    "id": "zenn-layerx",
+    "url": "https://zenn.dev/p/layerx/feed",
+    "enabled": true
+  },
+  {
+    "title": "Vポイントマーケティング｜TECH LABの Tech Blog",
+    "id": "techblog-vpoint",
+    "url": "https://techblog.vpoint.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Rabee Tech blog",
+    "id": "zenn-rabee",
+    "url": "https://zenn.dev/p/rabee/feed",
+    "enabled": true
+  },
+  {
+    "title": "Taste of Tech Topics",
+    "id": "acro-engineer-hatenablog",
+    "url": "https://acro-engineer.hatenablog.com/rss",
+    "enabled": true
+  },
+  {
+    "title": "HEROZ Tech Blog",
+    "id": "techblog-heroz",
+    "url": "https://techblog.heroz.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Timee Product Team Blog",
+    "id": "tech-timee",
+    "url": "https://tech.timee.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "DRESS CODE TECH BLOG",
+    "id": "zenn-dress-code",
+    "url": "https://zenn.dev/p/dress_code/feed",
+    "enabled": true
+  },
+  {
+    "title": "ミスミ DataTech ブログ",
+    "id": "zenn-msmtec",
+    "url": "https://zenn.dev/p/msmtec/feed",
+    "enabled": true
+  },
+  {
+    "title": "エス・エム・エス エンジニア テックブログ",
+    "id": "tech-bm-sms",
+    "url": "https://tech.bm-sms.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "クロスマート Tech Blog",
+    "id": "xmart-techblog-hatenablog",
+    "url": "https://xmart-techblog.hatenablog.com/rss",
+    "enabled": true
+  },
+  {
+    "title": "ANDPAD Tech Blog",
+    "id": "tech-andpad",
+    "url": "https://tech.andpad.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Sumzap Engineering Blog",
+    "id": "tech-sumzap",
+    "url": "https://tech.sumzap.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "PLEX Product Team Blog",
+    "id": "product-plex",
+    "url": "https://product.plex.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "カミナシ エンジニアブログ",
+    "id": "kaminashi-developer-hatenablog",
+    "url": "https://kaminashi-developer.hatenablog.jp/rss",
+    "enabled": true
+  },
+  {
+    "title": "[公開中] AQ Tech Blog",
+    "id": "techblog-asia-quest",
+    "url": "https://techblog.asia-quest.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "ユニファ開発者ブログ",
+    "id": "tech-unifa-e",
+    "url": "https://tech.unifa-e.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "HERP TechHub",
+    "id": "tech-hub-herp",
+    "url": "https://tech-hub.herp.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Hello Tech",
+    "id": "tech-hello-ai",
+    "url": "https://tech.hello.ai/feed",
+    "enabled": true
+  },
+  {
+    "title": "Virtual Craft Tech Blog",
+    "id": "zenn-virtualcraft",
+    "url": "https://zenn.dev/p/virtualcraft/feed",
+    "enabled": true
+  },
+  {
+    "title": "booklista tech blog",
+    "id": "techblog-booklista",
+    "url": "https://techblog.booklista.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Feedforce Developer Blog",
+    "id": "developer-feedforce",
+    "url": "https://developer.feedforce.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "ぐるなびをちょっと良くするエンジニアブログ",
+    "id": "developers-gnavi",
+    "url": "https://developers.gnavi.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "asken テックブログ",
+    "id": "tech-asken",
+    "url": "https://tech.asken.inc/feed",
+    "enabled": true
+  },
+  {
+    "title": "ENECHANGE Developer Blog",
+    "id": "tech-enechange",
+    "url": "https://tech.enechange.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社ヘンリー エンジニアブログ",
+    "id": "dev-henry",
+    "url": "https://dev.henry.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社BALEEN STUDIO",
+    "id": "zenn-baleenstudio",
+    "url": "https://zenn.dev/p/baleenstudio/feed",
+    "enabled": true
+  },
+  {
+    "title": "SO Technologies 開発者ブログ",
+    "id": "developer-so-tech",
+    "url": "https://developer.so-tech.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "truestarテックブログ",
+    "id": "zenn-truestar",
+    "url": "https://zenn.dev/p/truestar/feed",
+    "enabled": true
+  },
+  {
+    "title": "Nexta Tech Blog",
+    "id": "zenn-nexta",
+    "url": "https://zenn.dev/p/nexta_/feed",
+    "enabled": true
+  },
+  {
+    "title": "AKARI Tech Blog",
+    "id": "tech-akariinc",
+    "url": "https://tech.akariinc.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "PR TIMES 開発者ブログ",
+    "id": "developers-prtimes",
+    "url": "https://developers.prtimes.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "Techfirm Cloud Architect Blog",
+    "id": "techblog-techfirm",
+    "url": "https://techblog.techfirm.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "ラック・セキュリティごった煮ブログ",
+    "id": "devblog-lac",
+    "url": "https://devblog.lac.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "電通総研 テックブログ",
+    "id": "tech-dentsusoken",
+    "url": "https://tech.dentsusoken.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "プラチナゲームズ公式ブログ",
+    "id": "platinumgames",
+    "url": "https://www.platinumgames.co.jp/official-blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "noteエンジニアチーム 公式マガジン",
+    "id": "engineerteam-note",
+    "url": "https://engineerteam.note.jp/m/rss",
+    "enabled": true
+  },
+  {
+    "title": "Geekplus Tech Blog",
+    "id": "zenn-geekplus",
+    "url": "https://zenn.dev/p/geekplus/feed",
+    "enabled": true
+  },
+  {
+    "title": "TVer Tech Blog",
+    "id": "techblog-tver",
+    "url": "https://techblog.tver.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "GMO Flatt Security Blog",
+    "id": "blog-flatt-tech",
+    "url": "https://blog.flatt.tech/feed",
+    "enabled": true
+  },
+  {
+    "title": "株式会社エムニ",
+    "id": "zenn-emuni",
+    "url": "https://zenn.dev/p/emuni/feed",
+    "enabled": true
+  },
+  {
+    "title": "ナレコムAWSレシピ",
+    "id": "recipe-kc-cloud",
+    "url": "https://recipe.kc-cloud.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Platinum Data Blog by BrainPad",
+    "id": "blog-brainpad",
+    "url": "https://blog.brainpad.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "FORCIA Tech Blog",
+    "id": "zenn-forcia-tech",
+    "url": "https://zenn.dev/p/forcia_tech/feed",
+    "enabled": true
+  },
+  {
+    "title": "松尾研究所テックブログ",
+    "id": "zenn-mkj",
+    "url": "https://zenn.dev/p/mkj/feed",
+    "enabled": true
+  },
+  {
+    "title": "COLOPL Tech Blog",
+    "id": "blog-colopl",
+    "url": "https://blog.colopl.dev/feed",
+    "enabled": true
+  },
+  {
+    "title": "aptpod Tech Blog",
+    "id": "tech-aptpod",
+    "url": "https://tech.aptpod.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Money Forward Developers Blog",
+    "id": "moneyforward-dev",
+    "url": "https://moneyforward-dev.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "MEDLEY Developer Portal",
+    "id": "developer-medley",
+    "url": "https://developer.medley.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Fusic Tech Blog",
+    "id": "tech-fusic",
+    "url": "https://tech.fusic.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Retty Tech Blog",
+    "id": "engineer-retty-me",
+    "url": "https://engineer.retty.me/feed",
+    "enabled": true
+  },
+  {
+    "title": "NHN テコラス Tech Blog",
+    "id": "techblog-nhn-techorus",
+    "url": "https://techblog.nhn-techorus.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "コドモン Product Team Blog",
+    "id": "tech-codmon",
+    "url": "https://tech.codmon.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "クラシコム Tech Blog",
+    "id": "note-kurashicom-tech",
+    "url": "https://note.com/kurashicom_tech/rss",
+    "enabled": true
+  },
+  {
+    "title": "freee Developers Hub",
+    "id": "developers-freee",
+    "url": "https://developers.freee.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "バイオインフォマティクス実践ラボ｜アメリエフ技術ブログ",
+    "id": "staffblog-amelieff",
+    "url": "https://staffblog.amelieff.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "虎の穴ラボ技術ブログ",
+    "id": "toranoana-lab-hatenablog",
+    "url": "https://toranoana-lab.hatenablog.com/rss",
+    "enabled": true
+  },
+  {
+    "title": "Fixstars Tech Blog /proc/cpuinfo",
+    "id": "zenn-fixstars",
+    "url": "https://zenn.dev/p/fixstars/feed",
+    "enabled": true
+  },
+  {
+    "title": "Linkode.TechBlog",
+    "id": "blog-linkode",
+    "url": "https://blog.linkode.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "OPTiM TECH BLOG",
+    "id": "tech-blog-optim",
+    "url": "https://tech-blog.optim.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "inSmartBank",
+    "id": "blog-smartbank",
+    "url": "https://blog.smartbank.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Google Developers Japan",
+    "id": "developers-jp-googleblog",
+    "url": "https://developers-jp.googleblog.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "ゆめみ",
+    "id": "zenn-yumemi-inc",
+    "url": "https://zenn.dev/p/yumemi_inc/feed",
+    "enabled": true
+  },
+  {
+    "title": "INAP Vision",
+    "id": "zenn-inapvision",
+    "url": "https://zenn.dev/p/inapvision/feed",
+    "enabled": true
+  },
+  {
+    "title": "エムティーアイ エンジニアリングブログ",
+    "id": "tech-mti",
+    "url": "https://tech.mti.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "kubell Creator's Note",
+    "id": "creators-note-chatwork",
+    "url": "https://creators-note.chatwork.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "GREE Engineering",
+    "id": "labs-gree",
+    "url": "https://labs.gree.jp/blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "レスキューナウテックブログ",
+    "id": "zenn-rescuenow",
+    "url": "https://zenn.dev/p/rescuenow/feed",
+    "enabled": true
+  },
+  {
+    "title": "DELTAテックブログ",
+    "id": "zenn-team-delta",
+    "url": "https://zenn.dev/p/team_delta/feed",
+    "enabled": true
+  },
+  {
+    "title": "PKSHAテックブログ",
+    "id": "zenn-pksha",
+    "url": "https://zenn.dev/p/pksha/feed",
+    "enabled": true
+  },
+  {
+    "title": "Monoxer Tech Blog",
+    "id": "tech-monoxer",
+    "url": "https://tech.monoxer.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "SB Intuitions TECH BLOG",
+    "id": "sbintuitions",
+    "url": "https://www.sbintuitions.co.jp/blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "MONEX ENGINEER BLOG",
+    "id": "blog-tech-monex",
+    "url": "https://blog.tech-monex.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "弁護士ドットコム株式会社 Creators' blog",
+    "id": "creators-bengo4",
+    "url": "https://creators.bengo4.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "マップボックス・ジャパン合同会社",
+    "id": "zenn-mapbox-japan",
+    "url": "https://zenn.dev/p/mapbox_japan/feed",
+    "enabled": true
+  },
+  {
+    "title": "レバレジーズ データAIブログ",
+    "id": "analytics-leverages",
+    "url": "https://analytics.leverages.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "pixiv inside",
+    "id": "inside-pixiv",
+    "url": "https://inside.pixiv.blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "GMO MAKESHOP engineer blog",
+    "id": "tech-makeshop",
+    "url": "https://tech.makeshop.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "ASKUL Engineering BLOG",
+    "id": "tech-askul",
+    "url": "https://tech.askul.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "LIFULL Creators Blog",
+    "id": "lifull",
+    "url": "https://www.lifull.blog/feed",
+    "enabled": true
+  },
+  {
+    "title": "エイトハンドレッド TECH BLOG",
+    "id": "eight-hundred-800-dev-hatenablog",
+    "url": "https://eight-hundred-800-dev.hatenablog.com/rss",
+    "enabled": true
+  },
+  {
+    "title": "hacomono TECH BLOG",
+    "id": "techblog-hacomono",
+    "url": "https://techblog.hacomono.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "さくらのナレッジ",
+    "id": "knowledge-sakura-ad",
+    "url": "https://knowledge.sakura.ad.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Alternative Architecture DOJO",
+    "id": "aadojo-alterbooth",
+    "url": "https://aadojo.alterbooth.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "MOBILUS TECH BLOG",
+    "id": "mobilus-hatenablog",
+    "url": "https://mobilus.hatenablog.com/rss",
+    "enabled": true
+  },
+  {
+    "title": "シンクロ・フード エンジニアブログ",
+    "id": "tech-synchro-food",
+    "url": "https://tech.synchro-food.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "VISASQ Dev Blog",
+    "id": "tech-visasq",
+    "url": "https://tech.visasq.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "ハウテレビジョン技術ブログ",
+    "id": "blog-howtelevision",
+    "url": "https://blog.howtelevision.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "LegalOn Technologies Engineering Blog",
+    "id": "tech-legalforce",
+    "url": "https://tech.legalforce.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Leverages Tech Blog",
+    "id": "tech-leverages",
+    "url": "https://tech.leverages.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "CARTA TECH BLOG",
+    "id": "techblog-cartaholdings",
+    "url": "https://techblog.cartaholdings.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Techtouch Developers Blog",
+    "id": "tech-techtouch",
+    "url": "https://tech.techtouch.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Nealle Developer's Blog",
+    "id": "nealle-dev-hatenablog",
+    "url": "https://nealle-dev.hatenablog.com/rss",
+    "enabled": true
+  },
+  {
+    "title": "神戸のデータ活用塾！KDL Data Blog",
+    "id": "kdl-di-hatenablog",
+    "url": "https://kdl-di.hatenablog.com/rss",
+    "enabled": true
+  },
+  {
+    "title": "クラウドワークス エンジニアブログ",
+    "id": "engineer-crowdworks",
+    "url": "https://engineer.crowdworks.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "STORES Product Blog",
+    "id": "product-st",
+    "url": "https://product.st.inc/feed",
+    "enabled": true
+  },
+  {
+    "title": "SOMPO Digital Lab",
+    "id": "zenn-sompojapan-dx",
+    "url": "https://zenn.dev/p/sompojapan_dx/feed",
+    "enabled": true
+  },
+  {
+    "title": "HashPort技術ブログ",
+    "id": "tech-hashport",
+    "url": "https://tech.hashport.io/feed",
+    "enabled": true
+  },
+  {
+    "title": "Mirai Translate TECH BLOG",
+    "id": "miraitranslate-tech-hatenablog",
+    "url": "https://miraitranslate-tech.hatenablog.jp/rss",
+    "enabled": true
+  },
+  {
+    "title": "WealthNavi Engineering Blog",
+    "id": "zenn-wn-engineering",
+    "url": "https://zenn.dev/p/wn_engineering/feed",
+    "enabled": true
+  },
+  {
+    "title": "Skyfall Tech Blog",
+    "id": "zenn-skyfall",
+    "url": "https://zenn.dev/p/skyfall/feed",
+    "enabled": true
+  },
+  {
+    "title": "FreakOut Backyard",
+    "id": "backyard-fout",
+    "url": "https://backyard.fout.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "RevComm Tech Blog",
+    "id": "tech-revcomm",
+    "url": "https://tech.revcomm.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "レバテック開発部",
+    "id": "zenn-levtech",
+    "url": "https://zenn.dev/p/levtech/feed",
+    "enabled": true
+  },
+  {
+    "title": "Cluster Tech Blog",
+    "id": "tech-blog-cluster-mu",
+    "url": "https://tech-blog.cluster.mu/feed",
+    "enabled": true
+  },
+  {
+    "title": "WILLGATE TECH BLOG",
+    "id": "tech-willgate",
+    "url": "https://tech.willgate.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "カンム テックブログ",
+    "id": "tech-kanmu",
+    "url": "https://tech.kanmu.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "ESM アジャイル事業部 開発者ブログ",
+    "id": "blog-agile-esm",
+    "url": "https://blog.agile.esm.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "CORETECH ENGINEER BLOG",
+    "id": "blog-sge-coretech",
+    "url": "https://blog.sge-coretech.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "Blogical",
+    "id": "blog-logical",
+    "url": "https://blog.logical.co.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "Classi開発者ブログ",
+    "id": "tech-classi",
+    "url": "https://tech.classi.jp/feed",
+    "enabled": true
+  },
+  {
+    "title": "ecbeing labs",
+    "id": "blog-ecbeing-tech",
+    "url": "https://blog.ecbeing.tech/feed",
+    "enabled": true
+  },
+  {
+    "title": "Spectee Developers Blog",
+    "id": "zenn-spectee",
+    "url": "https://zenn.dev/p/spectee/feed",
+    "enabled": true
+  },
+  {
+    "title": "サイボウズ フロントエンド",
+    "id": "zenn-cybozu-frontend",
+    "url": "https://zenn.dev/p/cybozu_frontend/feed",
+    "enabled": true
+  },
+  {
+    "title": "NHKニュース（総合）",
+    "id": "www3-nhk",
+    "url": "https://www3.nhk.or.jp/rss/news/cat0.xml",
+    "enabled": true
+  },
+  {
+    "title": "NHKニュース（社会）",
+    "id": "www3-nhk-2",
+    "url": "https://www3.nhk.or.jp/rss/news/cat1.xml",
+    "enabled": true
+  },
+  {
+    "title": "NHKニュース（科学・文化）",
+    "id": "www3-nhk-3",
+    "url": "https://www3.nhk.or.jp/rss/news/cat2.xml",
+    "enabled": true
+  },
+  {
+    "title": "NHKニュース（科学・医療）",
+    "id": "www3-nhk-4",
+    "url": "https://www3.nhk.or.jp/rss/news/cat3.xml",
+    "enabled": true
+  },
+  {
+    "title": "NHKニュース（政治）",
+    "id": "www3-nhk-5",
+    "url": "https://www3.nhk.or.jp/rss/news/cat4.xml",
+    "enabled": true
+  },
+  {
+    "title": "NHKニュース（経済）",
+    "id": "www3-nhk-6",
+    "url": "https://www3.nhk.or.jp/rss/news/cat5.xml",
+    "enabled": true
+  },
+  {
+    "title": "NHKニュース（国際）",
+    "id": "www3-nhk-7",
+    "url": "https://www3.nhk.or.jp/rss/news/cat6.xml",
+    "enabled": true
+  },
+  {
+    "title": "NHKニュース（スポーツ）",
+    "id": "www3-nhk-8",
+    "url": "https://www3.nhk.or.jp/rss/news/cat7.xml",
+    "enabled": true
+  },
+  {
+    "title": "毎日新聞（速報）",
+    "id": "mainichi",
+    "url": "http://mainichi.jp/rss/etc/flash.rss",
+    "enabled": true
+  },
+  {
+    "title": "毎日新聞（スポーツ）",
+    "id": "mainichi-2",
+    "url": "http://mainichi.jp/rss/etc/sports.rss",
+    "enabled": true
+  },
+  {
+    "title": "毎日新聞（エンタメ）",
+    "id": "mainichi-3",
+    "url": "http://mainichi.jp/rss/etc/enta.rss",
+    "enabled": true
+  },
+  {
+    "title": "毎日新聞（アニメ・漫画・ゲーム）",
+    "id": "mainichi-4",
+    "url": "http://mainichi.jp/rss/etc/mantan.rss",
+    "enabled": true
+  },
+  {
+    "title": "毎日新聞（IT・家電）",
+    "id": "mainichi-5",
+    "url": "http://mainichi.jp/rss/etc/electronics.rss",
+    "enabled": true
+  },
+  {
+    "title": "朝日新聞（速報見出し）",
+    "id": "rss-asahi",
+    "url": "http://rss.asahi.com/f/asahi_newsheadlines",
+    "enabled": true
+  },
+  {
+    "title": "産経ニュース（イザ！総合）",
+    "id": "iza-top",
+    "url": "http://www.iza.ne.jp/top/NwEntTopRSS.rdf",
+    "enabled": true
+  },
+  {
+    "title": "産経ニュース（イザ！エンタメ）",
+    "id": "iza-news",
+    "url": "http://www.iza.ne.jp/news/entertainment/NwCateRSS.rdf",
+    "enabled": true
+  },
+  {
+    "title": "産経ニュース（イザ！スポーツ）",
+    "id": "iza-news-2",
+    "url": "http://www.iza.ne.jp/news/sports/NwCateRSS.rdf",
+    "enabled": true
+  },
+  {
+    "title": "産経ニュース（イザ！事件）",
+    "id": "iza-news-3",
+    "url": "http://www.iza.ne.jp/news/event/NwCateRSS.rdf",
+    "enabled": true
+  },
+  {
+    "title": "産経ニュース（イザ！政治）",
+    "id": "iza-news-4",
+    "url": "http://www.iza.ne.jp/news/politics/NwCateRSS.rdf",
+    "enabled": true
+  },
+  {
+    "title": "北海道新聞",
+    "id": "hokkaido-np",
+    "url": "http://www.hokkaido-np.co.jp/rss/index.rdf",
+    "enabled": true
+  },
+  {
+    "title": "東京新聞",
+    "id": "zou3-xrea",
+    "url": "http://zou3.xrea.jp/rss/tokyo2rss.php",
+    "enabled": true
+  },
+  {
+    "title": "Yahoo!ニューストピックス（主要）",
+    "id": "news-yahoo",
+    "url": "https://news.yahoo.co.jp/rss/topics/top-picks.xml",
+    "enabled": true
+  },
+  {
+    "title": "livedoorニューストピックス",
+    "id": "news-livedoor",
+    "url": "http://news.livedoor.com/topics/rss/top.xml",
+    "enabled": true
+  },
+  {
+    "title": "ITmedia NEWS（速報）",
+    "id": "rss-itmedia",
+    "url": "https://rss.itmedia.co.jp/rss/2.0/news_bursts.xml",
+    "enabled": true
+  },
+  {
+    "title": "ITmedia 総合",
+    "id": "rss-itmedia-2",
+    "url": "https://rss.itmedia.co.jp/rss/2.0/itmedia_all.xml",
+    "enabled": true
+  },
+  {
+    "title": "ねとらぼ",
+    "id": "rss-itmedia-3",
+    "url": "https://rss.itmedia.co.jp/rss/2.0/nlab.xml",
+    "enabled": true
+  },
+  {
+    "title": "ITmedia AI+",
+    "id": "rss-itmedia-4",
+    "url": "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml",
+    "enabled": true
+  },
+  {
+    "title": "ITmedia Mobile",
+    "id": "rss-itmedia-5",
+    "url": "https://rss.itmedia.co.jp/rss/2.0/itmedia_mobile.xml",
+    "enabled": true
+  },
+  {
+    "title": "ITmedia PC USER",
+    "id": "rss-itmedia-6",
+    "url": "https://rss.itmedia.co.jp/rss/2.0/itmedia_pcuser.xml",
+    "enabled": true
+  },
+  {
+    "title": "ASCII.jp",
+    "id": "ascii-rss-xml",
+    "url": "https://ascii.jp/rss.xml",
+    "enabled": true
+  },
+  {
+    "title": "GIGAZINE",
+    "id": "gigazine",
+    "url": "https://gigazine.net/news/rss_2.0/",
+    "enabled": true
+  },
+  {
+    "title": "Publickey",
+    "id": "publickey1",
+    "url": "https://www.publickey1.jp/atom.xml",
+    "enabled": true
+  },
+  {
+    "title": "CNET Japan",
+    "id": "japan-cnet",
+    "url": "https://japan.cnet.com/rss/index.rdf",
+    "enabled": true
+  },
+  {
+    "title": "ZDNET Japan",
+    "id": "japan-zdnet",
+    "url": "https://japan.zdnet.com/rss/index.rdf",
+    "enabled": true
+  },
+  {
+    "title": "Impress Watch",
+    "id": "watch-impress",
+    "url": "https://www.watch.impress.co.jp/data/rss/1.0/wf.rdf",
+    "enabled": true
+  },
+  {
+    "title": "INTERNET Watch",
+    "id": "internet-watch-impress",
+    "url": "https://internet.watch.impress.co.jp/data/rss/1.0/iw.rdf",
+    "enabled": true
+  },
+  {
+    "title": "PC Watch",
+    "id": "pc-watch-impress",
+    "url": "https://pc.watch.impress.co.jp/data/rss/1.0/pcw.rdf",
+    "enabled": true
+  },
+  {
+    "title": "AV Watch",
+    "id": "av-watch-impress",
+    "url": "https://av.watch.impress.co.jp/data/rss/1.0/avw.rdf",
+    "enabled": true
+  },
+  {
+    "title": "ケータイ Watch",
+    "id": "k-tai-watch-impress",
+    "url": "https://k-tai.watch.impress.co.jp/data/rss/1.0/ktw.rdf",
+    "enabled": true
+  },
+  {
+    "title": "Engadget日本版",
+    "id": "japanese-engadget",
+    "url": "https://japanese.engadget.com/rss.xml",
+    "enabled": true
+  },
+  {
+    "title": "東洋経済オンライン",
+    "id": "toyokeizai",
+    "url": "https://toyokeizai.net/list/feed/rss",
+    "enabled": true
+  },
+  {
+    "title": "ダイヤモンド・オンライン",
+    "id": "diamond",
+    "url": "https://diamond.jp/list/feed/rss",
+    "enabled": true
+  },
+  {
+    "title": "PRESIDENT Online",
+    "id": "president",
+    "url": "https://president.jp/list/rss",
+    "enabled": true
+  },
+  {
+    "title": "Business Insider Japan",
+    "id": "businessinsider",
+    "url": "https://www.businessinsider.jp/feed/index.xml",
+    "enabled": true
+  },
+  {
+    "title": "Forbes JAPAN",
+    "id": "forbesjapan",
+    "url": "https://forbesjapan.com/feed",
+    "enabled": true
+  },
+  {
+    "title": "WIRED.jp",
+    "id": "wired",
+    "url": "https://wired.jp/feed/",
+    "enabled": true
+  },
+  {
+    "title": "ハフポスト日本版",
+    "id": "huffingtonpost",
+    "url": "https://www.huffingtonpost.jp/feeds/index.xml",
+    "enabled": true
+  },
+  {
+    "title": "ロケットニュース24",
+    "id": "rocketnews24",
+    "url": "https://rocketnews24.com/feed/",
+    "enabled": true
+  },
+  {
+    "title": "Response（レスポンス）",
+    "id": "response",
+    "url": "https://response.jp/rss/index.rdf",
+    "enabled": true
+  },
+  {
+    "title": "日刊スポーツ",
+    "id": "nikkansports",
+    "url": "https://www.nikkansports.com/rss/news/nikkansports.rdf",
+    "enabled": true
+  },
+  {
+    "title": "Yahoo!ニュース（国内）",
+    "id": "news-yahoo-2",
+    "url": "https://news.yahoo.co.jp/rss/topics/domestic.xml",
+    "enabled": true
+  },
+  {
+    "title": "Yahoo!ニュース（国際）",
+    "id": "news-yahoo-3",
+    "url": "https://news.yahoo.co.jp/rss/topics/world.xml",
+    "enabled": true
+  },
+  {
+    "title": "Yahoo!ニュース（経済）",
+    "id": "news-yahoo-4",
+    "url": "https://news.yahoo.co.jp/rss/topics/business.xml",
+    "enabled": true
+  },
+  {
+    "title": "Yahoo!ニュース（エンタメ）",
+    "id": "news-yahoo-5",
+    "url": "https://news.yahoo.co.jp/rss/topics/entertainment.xml",
+    "enabled": true
+  },
+  {
+    "title": "Yahoo!ニュース（スポーツ）",
+    "id": "news-yahoo-6",
+    "url": "https://news.yahoo.co.jp/rss/topics/sports.xml",
+    "enabled": true
+  },
+  {
+    "title": "Yahoo!ニュース（IT・科学）",
+    "id": "news-yahoo-7",
+    "url": "https://news.yahoo.co.jp/rss/topics/it.xml",
+    "enabled": true
+  },
+  {
+    "title": "Yahoo!ニュース（地域）",
+    "id": "news-yahoo-8",
+    "url": "https://news.yahoo.co.jp/rss/topics/local.xml",
+    "enabled": true
+  }
+]
