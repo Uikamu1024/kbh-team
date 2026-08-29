@@ -55,12 +55,11 @@ func NewJinaFetcher(client *http.Client) *JinaFetcher {
 }
 
 // FetchArticles fetches the whitelisted articles for each requested tag.
-// When JINA_AI_API_KEY is unset, it returns deterministic local mock articles.
+// jina.ai Reader allows unauthenticated requests at a lower rate limit
+// (see https://jina.ai/reader/), so JINA_AI_API_KEY is optional: when set it
+// is sent as a bearer token for a higher rate limit, but real fetches are
+// attempted either way.
 func (f *JinaFetcher) FetchArticles(ctx context.Context, tags []string) ([]domain.Article, error) {
-	if strings.TrimSpace(os.Getenv("JINA_AI_API_KEY")) == "" {
-		return mockArticles(tags, "jina"), nil
-	}
-
 	articles := make([]domain.Article, 0)
 	for _, tag := range tags {
 		for _, sourceURL := range limitedURLs(whitelistURLs(tag)) {
