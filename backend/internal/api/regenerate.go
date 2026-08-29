@@ -45,7 +45,7 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 	for _, chapter := range previousChapters {
 		previousTopics = append(previousTopics, chapter.Title)
 	}
-	topics, err := pipeline.SelectCachedTopics(ctx, s.database, user.Tags, userID)
+	selected, changeCount, err := pipeline.SelectAndRankCachedTopics(ctx, s.database, user.Tags, userID, user.LengthMinutes, previousTopics)
 	if err != nil {
 		if writeArticleSelectionError(w, err) {
 			return
@@ -64,11 +64,6 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	selected, changeCount, err := pipeline.ScoreAndSelect(ctx, s.languageModel, topics, user.LengthMinutes, previousTopics)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "UPSTREAM_LLM_FAILED", "台本生成に失敗しました")
-		return
-	}
 	greetingText, drafts, err := pipeline.GenerateScript(ctx, s.languageModel, selected)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "UPSTREAM_LLM_FAILED", "台本生成に失敗しました")

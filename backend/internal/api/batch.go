@@ -80,18 +80,13 @@ func (s *Server) processBatchUser(user db.User) {
 		return
 	}
 
-	topics, err := pipeline.SelectCachedTopics(ctx, s.database, user.Tags, user.ID)
+	selected, changeCount, err := pipeline.SelectAndRankCachedTopics(ctx, s.database, user.Tags, user.ID, user.LengthMinutes, previousTopics)
 	if err != nil {
 		if errors.Is(err, pipeline.ErrArticleCacheEmpty) || errors.Is(err, pipeline.ErrNoUnseenArticles) {
 			log.Printf("batch: skip user %s: %v", user.ID, err)
 			return
 		}
 		log.Printf("batch: select cached articles for user %s failed: %v", user.ID, err)
-		return
-	}
-	selected, changeCount, err := pipeline.ScoreAndSelect(ctx, s.languageModel, topics, user.LengthMinutes, previousTopics)
-	if err != nil {
-		log.Printf("batch: score topics for user %s failed: %v", user.ID, err)
 		return
 	}
 	greetingText, drafts, err := pipeline.GenerateScript(ctx, s.languageModel, selected)

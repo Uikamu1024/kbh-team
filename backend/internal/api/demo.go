@@ -37,17 +37,12 @@ func (s *Server) generateDemo(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
 
-	topics, err := pipeline.SelectCachedTopics(ctx, s.database, request.Tags, "")
+	selected, changeCount, err := pipeline.SelectAndRankCachedTopics(ctx, s.database, request.Tags, "", 10, nil)
 	if err != nil {
 		if writeArticleSelectionError(w, err) {
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "記事キャッシュを取得できません")
-		return
-	}
-	selected, changeCount, err := pipeline.ScoreAndSelect(ctx, s.languageModel, topics, 10, nil)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "UPSTREAM_LLM_FAILED", "台本生成に失敗しました")
 		return
 	}
 	greetingText, drafts, err := pipeline.GenerateScript(ctx, s.languageModel, selected)

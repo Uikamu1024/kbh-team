@@ -76,18 +76,12 @@ func run(args []string) error {
 	}
 	defer database.Close()
 
-	topics, err := pipeline.SelectCachedTopics(ctx, database, tags, "")
+	selected, changeCount, err := pipeline.SelectAndRankCachedTopics(ctx, database, tags, "", defaultLengthMinutes, nil)
 	if err != nil {
 		if errors.Is(err, pipeline.ErrArticleCacheEmpty) {
 			return fmt.Errorf("article cache is empty for tags %v; run `go run ./cmd/ingest` first: %w", tags, err)
 		}
 		return fmt.Errorf("select cached topics: %w", err)
-	}
-	log.Printf("selected %d cached topics", len(topics))
-
-	selected, changeCount, err := pipeline.ScoreAndSelect(ctx, languageModel, topics, defaultLengthMinutes, nil)
-	if err != nil {
-		return fmt.Errorf("score and select topics: %w", err)
 	}
 	log.Printf("selected %d chapters (changeCount=%d)", len(selected), changeCount)
 
