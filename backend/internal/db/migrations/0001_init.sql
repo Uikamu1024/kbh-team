@@ -24,8 +24,7 @@ CREATE TABLE IF NOT EXISTS chapters (
   source_name TEXT NOT NULL,
   script TEXT NOT NULL,
   audio_path TEXT NOT NULL,
-  duration_sec INT NOT NULL,
-  importance_score INT NOT NULL
+  duration_sec INT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS programs_user_created_at_idx

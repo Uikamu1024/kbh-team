@@ -20,15 +20,14 @@ type programResponse struct {
 }
 
 type chapterResponse struct {
-	ID              string `json:"id"`
-	Position        int    `json:"position"`
-	Title           string `json:"title"`
-	SourceURL       string `json:"sourceUrl"`
-	SourceName      string `json:"sourceName"`
-	Script          string `json:"script"`
-	AudioURL        string `json:"audioUrl"`
-	DurationSec     int    `json:"durationSec"`
-	ImportanceScore int    `json:"importanceScore"`
+	ID          string `json:"id"`
+	Position    int    `json:"position"`
+	Title       string `json:"title"`
+	SourceURL   string `json:"sourceUrl"`
+	SourceName  string `json:"sourceName"`
+	Script      string `json:"script"`
+	AudioURL    string `json:"audioUrl"`
+	DurationSec int    `json:"durationSec"`
 }
 
 type programHistoryResponse struct {
@@ -107,15 +106,14 @@ func makeProgramResponse(program db.Program, chapters []db.Chapter) programRespo
 	responseChapters := make([]chapterResponse, 0, len(chapters))
 	for _, chapter := range chapters {
 		responseChapters = append(responseChapters, chapterResponse{
-			ID:              chapter.ID,
-			Position:        chapter.Position,
-			Title:           chapter.Title,
-			SourceURL:       chapter.SourceURL,
-			SourceName:      chapter.SourceName,
-			Script:          chapter.Script,
-			AudioURL:        "/api/audio/" + program.ID + "/" + chapter.ID,
-			DurationSec:     chapter.DurationSec,
-			ImportanceScore: chapter.ImportanceScore,
+			ID:          chapter.ID,
+			Position:    chapter.Position,
+			Title:       chapter.Title,
+			SourceURL:   chapter.SourceURL,
+			SourceName:  chapter.SourceName,
+			Script:      chapter.Script,
+			AudioURL:    "/api/audio/" + program.ID + "/" + chapter.ID,
+			DurationSec: chapter.DurationSec,
 		})
 	}
 	return programResponse{

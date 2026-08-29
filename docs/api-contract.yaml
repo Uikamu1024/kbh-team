@@ -690,8 +690,11 @@ components:
           type: integer
           description: |
             前日の番組からの差分件数（新規・更新されたトピック数）。`chapters.length`とは
-            別概念で、重要度判定ステップ（[03-score.md](../backend/docs/pipeline/03-score.md)）が
-            算出する。ホーム画面の「今日はn件、動きがあります」の`n`に対応
+            別概念。`demo/generate`以外（キャッシュ経由の生成）では
+            [03-selection.md](../backend/docs/generation/03-selection.md)の選択ロジックが、
+            `demo/generate`（ライブfetch経路）では重要度判定ステップ
+            （[03-score.md](../backend/docs/pipeline/03-score.md)）が算出する。
+            ホーム画面の「今日はn件、動きがあります」の`n`に対応
           example: 3
         totalDurationSec:
           type: integer
@@ -713,7 +716,6 @@ components:
         - script
         - audioUrl
         - durationSec
-        - importanceScore
       properties:
         id:
           type: string
@@ -754,9 +756,6 @@ components:
             チャプター単体の再生時間（秒）。プレイヤーのシークバー初期表示に使う
             （`<audio>`のメタデータ読み込み完了を待たずに表示できるようにするため）
           example: 95
-        importanceScore:
-          type: integer
-          example: 5
 
     UserProfile:
       type: object

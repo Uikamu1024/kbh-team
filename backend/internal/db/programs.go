@@ -27,16 +27,15 @@ type Program struct {
 
 // Chapter represents a chapters row.
 type Chapter struct {
-	ID              string
-	ProgramID       string
-	Position        int
-	Title           string
-	SourceURL       string
-	SourceName      string
-	Script          string
-	AudioPath       string
-	DurationSec     int
-	ImportanceScore int
+	ID          string
+	ProgramID   string
+	Position    int
+	Title       string
+	SourceURL   string
+	SourceName  string
+	Script      string
+	AudioPath   string
+	DurationSec int
 }
 
 // ProgramSummary contains the lightweight fields needed by program history.
@@ -322,9 +321,9 @@ func insertProgramWithIDs(ctx context.Context, tx pgx.Tx, userID, greetingText s
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO chapters (
 				id, program_id, position, title, source_url, source_name,
-				script, audio_path, duration_sec, importance_score
+				script, audio_path, duration_sec
 			)
-			VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9)`,
 			chapterID,
 			programID,
 			chapter.Position,
@@ -334,7 +333,6 @@ func insertProgramWithIDs(ctx context.Context, tx pgx.Tx, userID, greetingText s
 			chapterScript(chapter.Lines),
 			chapterAudioPaths[index],
 			chapter.DurationSec,
-			chapter.ImportanceScore,
 		); err != nil {
 			return "", nil, fmt.Errorf("insert chapter %d: %w", index, err)
 		}
@@ -363,7 +361,7 @@ func (d *DB) queryProgram(ctx context.Context, query, programID string) (Program
 func (d *DB) getChapters(ctx context.Context, programID string) ([]Chapter, error) {
 	rows, err := d.pool.Query(ctx, `
 		SELECT id::text, program_id::text, position, title, source_url, source_name,
-		       script, audio_path, duration_sec, importance_score
+		       script, audio_path, duration_sec
 		FROM chapters
 		WHERE program_id = $1::uuid
 		ORDER BY position`, programID)
@@ -385,7 +383,6 @@ func (d *DB) getChapters(ctx context.Context, programID string) ([]Chapter, erro
 			&chapter.Script,
 			&chapter.AudioPath,
 			&chapter.DurationSec,
-			&chapter.ImportanceScore,
 		); err != nil {
 			return nil, fmt.Errorf("scan program chapter: %w", err)
 		}
