@@ -133,7 +133,9 @@ npm run dev
 
 | 役割 | 名前 | GitHub |
 | --- | --- | --- |
-|  |  | @ |
+|  | Seiya |  |
+|  | Sorato |  |
+|  | Ryuuki |  |
 
 ---
 
