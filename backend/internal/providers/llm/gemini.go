@@ -15,7 +15,7 @@ import (
 	"backend/internal/domain"
 )
 
-const defaultGeminiModel = "gemini-2.0-flash"
+const defaultGeminiModel = "gemini-3.6-flash"
 
 // GeminiLLM calls the Gemini generateContent API for topic scoring.
 type GeminiLLM struct {

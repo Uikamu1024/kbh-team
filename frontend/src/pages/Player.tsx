@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { getAudioUrl, getLatestProgram, getProgram } from "@/lib/api";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ApiError, getAudioUrl, getLatestProgram, getProgram } from "@/lib/api";
 import { useUserId } from "@/lib/useUserId";
 import { formatSecondsAsClock } from "@/lib/format";
 import { concatenateWavBuffers } from "@/lib/wav";
@@ -37,6 +37,7 @@ function buildWaveformHeights(seed: string): number[] {
 }
 
 export default function Player() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const programIdParam = searchParams.get("programId");
   const autoplay = searchParams.get("autoplay") === "1";
@@ -83,8 +84,13 @@ export default function Player() {
         setResult({ key, state: { status: "ready", program, audioUrl, chapterDurations } });
         setCurrentTime(0);
       })
-      .catch(() => {
-        if (!cancelled) setResult({ key, state: { status: "error" } });
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.code === "PROGRAM_NOT_FOUND") {
+          setResult({ key, state: { status: "not-ready" } });
+        } else {
+          setResult({ key, state: { status: "error" } });
+        }
       });
 
     return () => {
@@ -177,6 +183,24 @@ export default function Player() {
     return (
       <div className="flex flex-1 items-center justify-center">
         <p className="text-sm text-text-tertiary">読み込んでいます…</p>
+      </div>
+    );
+  }
+
+  if (state.status === "not-ready") {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+        <p className="text-[15px] font-semibold">まだ番組がありません</p>
+        <p className="text-sm text-text-tertiary">
+          今日の番組が準備できてから、もう一度開いてください。
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate("/home")}
+          className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-[#06120a]"
+        >
+          ホームへ戻る
+        </button>
       </div>
     );
   }

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getUser } from "@/lib/api";
+import { ApiError, getUser } from "@/lib/api";
 import { useUserId } from "@/lib/useUserId";
+import { clearStoredUserId, ensureUserId } from "@/lib/user";
 
 // アプリの入口。userIdの発行確認と、オンボーディング済みかどうかの判定だけを行い、
 // 適切な画面へリダイレクトする（このルート自体はUIを持たない）。
@@ -20,8 +21,25 @@ export default function RootGate() {
         if (cancelled) return;
         navigate(profile.tags.length > 0 ? "/home" : "/onboarding", { replace: true });
       })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err : new Error(String(err)));
+      .catch(async (err) => {
+        if (cancelled) return;
+
+        // DBリセット等でlocalStorageのuserIdがサーバー側に存在しなくなっているケース。
+        // 古いIDを捨てて新規発行し直せば、通常のオンボーディングとして復旧できる。
+        if (err instanceof ApiError && err.code === "USER_NOT_FOUND") {
+          clearStoredUserId();
+          try {
+            await ensureUserId();
+            if (!cancelled) navigate("/onboarding", { replace: true });
+          } catch (retryErr) {
+            if (!cancelled) {
+              setError(retryErr instanceof Error ? retryErr : new Error(String(retryErr)));
+            }
+          }
+          return;
+        }
+
+        setError(err instanceof Error ? err : new Error(String(err)));
       });
 
     return () => {
