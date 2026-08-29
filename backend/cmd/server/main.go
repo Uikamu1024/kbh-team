@@ -13,6 +13,7 @@ import (
 
 	"backend/internal/api"
 	"backend/internal/db"
+	"backend/internal/envfile"
 	"backend/internal/storage"
 )
 
@@ -24,6 +25,12 @@ func main() {
 }
 
 func run() error {
+	// Go has no built-in .env support; without this, "cp .env.example .env"
+	// has no effect and every variable below reads as unset.
+	if err := envfile.Load(".env"); err != nil {
+		return fmt.Errorf("load .env: %w", err)
+	}
+
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if databaseURL == "" {
 		return fmt.Errorf("DATABASE_URL is not set")

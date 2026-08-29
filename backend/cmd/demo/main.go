@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"backend/internal/domain"
+	"backend/internal/envfile"
 	"backend/internal/pipeline"
 	"backend/internal/providers/fetcher"
 	"backend/internal/providers/llm"
@@ -30,6 +31,12 @@ func main() {
 }
 
 func run(args []string) error {
+	// Go has no built-in .env support; without this, a copied .env.example
+	// (e.g. for a real Gemini/jina API key) would silently have no effect.
+	if err := envfile.Load(".env"); err != nil {
+		return fmt.Errorf("load .env: %w", err)
+	}
+
 	tags := normalizedTags(args)
 	if len(tags) == 0 {
 		return fmt.Errorf("provide at least one tag, for example: go run ./cmd/demo AI")
