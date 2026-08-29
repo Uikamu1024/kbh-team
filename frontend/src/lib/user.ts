@@ -17,15 +17,29 @@ function setStoredUserId(userId: string): void {
   window.localStorage.setItem(USER_ID_KEY, userId);
 }
 
+// ensureUserId() の呼び出し同士でPOST /api/usersが競合しないようにする進行中のPromise。
+// StrictModeのeffect二重実行や、複数コンポーネントがほぼ同時にマウントされるケースで
+// localStorageへの書き込みが完了する前に2回目の呼び出しが来ると、ガードが無いと
+// ユーザーが二重発行されてしまう（実際に発生を確認した不具合）。
+let pendingUserId: Promise<string> | null = null;
+
 // 初回起動時はユーザーが未作成のため、必ずサーバーへ発行を依頼してから保存する
 // （クライアントが自前でUUIDを生成しない理由は api-contract.yaml 参照）。
 export async function ensureUserId(): Promise<string> {
   const existing = getStoredUserId();
   if (existing) return existing;
 
-  const { userId } = await createUser();
-  setStoredUserId(userId);
-  return userId;
+  if (!pendingUserId) {
+    pendingUserId = createUser()
+      .then(({ userId }) => {
+        setStoredUserId(userId);
+        return userId;
+      })
+      .finally(() => {
+        pendingUserId = null;
+      });
+  }
+  return pendingUserId;
 }
 
 export function getDisplayName(): string {

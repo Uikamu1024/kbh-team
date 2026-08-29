@@ -89,6 +89,8 @@ export default function Profile() {
     } catch (err) {
       if (err instanceof ApiError && err.code === "RESET_LIMIT_EXCEEDED") {
         showToast("本日の上限に達しています");
+      } else if (err instanceof ApiError && err.code === "ALREADY_GENERATING") {
+        showToast("前回のリクエストを処理中です。しばらく待ってから再度お試しください");
       } else {
         showToast("作り直しに失敗しました");
       }
