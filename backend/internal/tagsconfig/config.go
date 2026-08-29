@@ -9,29 +9,25 @@ import (
 	"strings"
 )
 
-// Config is the top-level tags.json document.
-type Config struct {
-	Tags []string `json:"tags"`
-}
-
-// Load reads and validates a tags.json preset tag list.
+// Load reads and validates a tags.json preset tag list: a flat JSON array of
+// strings.
 func Load(path string) ([]string, error) {
 	contents, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read tags config: %w", err)
 	}
 
-	var config Config
-	if err := json.Unmarshal(contents, &config); err != nil {
+	var tags []string
+	if err := json.Unmarshal(contents, &tags); err != nil {
 		return nil, fmt.Errorf("parse tags config: %w", err)
 	}
-	if len(config.Tags) == 0 {
+	if len(tags) == 0 {
 		return nil, fmt.Errorf("tags config: at least one tag is required")
 	}
-	for index, tag := range config.Tags {
+	for index, tag := range tags {
 		if strings.TrimSpace(tag) == "" {
 			return nil, fmt.Errorf("tags config: tag %d is empty", index)
 		}
 	}
-	return config.Tags, nil
+	return tags, nil
 }
