@@ -3,11 +3,46 @@ package llm
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode"
 
 	"backend/internal/domain"
 )
+
+// bodyPromptCharLimit bounds how much of an article's body is sent to the
+// LLM per prompt (cost/latency control).
+const bodyPromptCharLimit = 2000
+
+// navLineRE matches a line that consists entirely of one or more Markdown
+// links/images with no other text — the shape jina.ai Reader produces for
+// site navigation menus, login links, and category lists that precede the
+// actual article body on many news sites.
+var navLineRE = regexp.MustCompile(`^(?:\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)|\[[^\]]*\]\([^)]*\)|!\[[^\]]*\]\([^)]*\))+$`)
+
+// stripNavigationLines removes pure navigation-link lines from a jina.ai
+// Reader Markdown body before it is truncated for a prompt.
+//
+// Found in production: many sites' Reader output front-loads a large block
+// of site-navigation links (header menu, login, category list) before the
+// article text begins. With the previous fixed 1200-character truncation,
+// this could consume the entire prompt budget, leaving the LLM with zero
+// actual article content for that topic (verified against a real cached
+// article: the first 1200 characters were 100% navigation links). Stripping
+// lines that are purely link/image syntax lets the truncation window reach
+// the real prose instead.
+func stripNavigationLines(body string) string {
+	lines := strings.Split(body, "\n")
+	kept := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || navLineRE.MatchString(trimmed) {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
+}
 
 type scoreResult struct {
 	Score      int   `json:"score"`
@@ -37,7 +72,7 @@ Set isNew to true when the topic is not substantially covered by any previous to
 Title: %s
 Article body (beginning): %s
 Related article count: %d
-Previous topic titles: %s`, topic.Primary.Title, truncateRunes(topic.Primary.Body, 1200), topic.RelatedCount, previous)
+Previous topic titles: %s`, topic.Primary.Title, truncateRunes(stripNavigationLines(topic.Primary.Body), bodyPromptCharLimit), topic.RelatedCount, previous)
 	return []byte(prompt), nil
 }
 
@@ -58,7 +93,7 @@ func buildScriptPrompt(selected []domain.ScoredTopic) ([]byte, error) {
 		input = append(input, scriptTopic{
 			Position:        topic.Position,
 			Title:           topic.Primary.Title,
-			Body:            truncateRunes(topic.Primary.Body, 1200),
+			Body:            truncateRunes(stripNavigationLines(topic.Primary.Body), bodyPromptCharLimit),
 			SourceName:      topic.Primary.SourceName,
 			SourceURL:       topic.Primary.SourceURL,
 			RelatedCount:    topic.RelatedCount,
