@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"backend/internal/domain"
 )
@@ -171,40 +173,94 @@ func buildOpenAIChatRequestWithSchema(model, prompt string, schema map[string]an
 	})
 }
 
+// maxChatCompletionAttempts bounds retries for transient failures (429/5xx).
+// Free-tier models on shared pools (OpenRouter, etc.) return brief 429s under
+// load; a script generation run makes one of these calls per fetched
+// article, so without a retry a single transient rate limit aborts the
+// entire generation even though most calls succeed.
+const maxChatCompletionAttempts = 3
+
 func (o *OpenAICompatibleLLM) chatCompletions(ctx context.Context, requestBody []byte) (string, error) {
+	var lastErr error
+	for attempt := 1; attempt <= maxChatCompletionAttempts; attempt++ {
+		content, retryAfter, err := o.chatCompletionsOnce(ctx, requestBody)
+		if err == nil {
+			return content, nil
+		}
+		lastErr = err
+		if retryAfter <= 0 || attempt == maxChatCompletionAttempts {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(retryAfter):
+		}
+	}
+	return "", lastErr
+}
+
+// chatCompletionsOnce makes a single attempt. When it returns a non-nil
+// error alongside a positive duration, the caller should wait that long and
+// retry; a zero duration means the error isn't worth retrying (bad request,
+// auth failure, etc.).
+func (o *OpenAICompatibleLLM) chatCompletionsOnce(ctx context.Context, requestBody []byte) (string, time.Duration, error) {
 	endpoint := o.baseURL + "/chat/completions"
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestBody))
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer "+o.apiKey)
 
 	response, err := o.client.Do(request)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	defer response.Body.Close()
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return "", err
+		return "", 0, err
+	}
+	if response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= http.StatusInternalServerError {
+		wait := retryAfterDuration(response.Header.Get("Retry-After"))
+		return "", wait, fmt.Errorf("OpenAI-compatible provider returned status %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return "", fmt.Errorf("OpenAI-compatible provider returned status %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
+		return "", 0, fmt.Errorf("OpenAI-compatible provider returned status %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var result openAIChatResponse
 	if err := json.Unmarshal(body, &result); err != nil {
-		return "", fmt.Errorf("decode OpenAI-compatible provider response: %w", err)
+		return "", 0, fmt.Errorf("decode OpenAI-compatible provider response: %w", err)
 	}
 	if result.Error != nil {
-		return "", fmt.Errorf("OpenAI-compatible provider API error: %s", result.Error.Message)
+		return "", 0, fmt.Errorf("OpenAI-compatible provider API error: %s", result.Error.Message)
 	}
 	if len(result.Choices) == 0 || strings.TrimSpace(result.Choices[0].Message.Content) == "" {
-		return "", errors.New("OpenAI-compatible provider response did not contain a choice")
+		return "", 0, errors.New("OpenAI-compatible provider response did not contain a choice")
 	}
-	return result.Choices[0].Message.Content, nil
+	return result.Choices[0].Message.Content, 0, nil
+}
+
+// retryAfterDuration parses a Retry-After header (seconds, per RFC 9110)
+// and falls back to a short fixed backoff when absent or unparseable.
+func retryAfterDuration(header string) time.Duration {
+	const fallback = 2 * time.Second
+	if header == "" {
+		return fallback
+	}
+	seconds, err := strconv.Atoi(strings.TrimSpace(header))
+	if err != nil || seconds <= 0 {
+		return fallback
+	}
+	const maxWait = 15 * time.Second
+	wait := time.Duration(seconds) * time.Second
+	if wait > maxWait {
+		return maxWait
+	}
+	return wait
 }
 
 var _ LLM = (*OpenAICompatibleLLM)(nil)

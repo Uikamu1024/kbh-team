@@ -72,11 +72,13 @@
 
   const PRESET_TAGS = ["AI", "京都", "ゲーム", "音楽", "スポーツ", "ビジネス", "映画", "旅行"];
   const MAX_TAGS = 3;
-  let selectedTags = ["AI", "京都"];
+  const ONBOARDING_STORAGE_KEY = "tsugaku-radio-onboarding";
+  let selectedTags = [];
+  let userName = "ゲスト";
 
   // ===== 状態 =====
   const state = {
-    screen: "home",
+    screen: "onboarding-name",
     currentChapterIndex: 0,
     isPlaying: false,
     progressRatio: 0.0, // 現在チャプター内の再生位置(0-1)
@@ -90,12 +92,19 @@
   // ===== DOM参照 =====
   const $ = (sel) => document.querySelector(sel);
   const screens = {
+    name: $("#screen-onboarding-name"),
+    interests: $("#screen-onboarding-interests"),
+    generating: $("#screen-generating"),
     home: $("#screen-home"),
     player: $("#screen-player"),
     profile: $("#screen-profile"),
   };
   const navItems = document.querySelectorAll(".nav-item");
   const minimizeBtn = $("#minimizeBtn");
+  const bottomNav = $(".bottom-nav");
+  const miniPlayer = $("#miniPlayer");
+  const miniPlayerOpen = $("#miniPlayerOpen");
+  const miniPlayerToggle = $("#miniPlayerToggle");
   const toastEl = $("#toast");
 
   // ===== 画面遷移 =====
@@ -106,12 +115,99 @@
     });
     navItems.forEach((btn) => btn.classList.toggle("active", btn.dataset.target === name));
     minimizeBtn.hidden = name !== "player";
+    bottomNav.hidden = name === "name" || name === "interests";
+    renderHeroPlayState();
+    renderMiniPlayer();
   }
 
   navItems.forEach((btn) => {
     btn.addEventListener("click", () => showScreen(btn.dataset.target));
   });
   minimizeBtn.addEventListener("click", () => showScreen("home"));
+  miniPlayerOpen.addEventListener("click", () => showScreen("player"));
+  miniPlayerToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    togglePlay();
+  });
+
+  // ===== 初回設定 =====
+  const nameForm = $("#nameForm");
+  const userNameInput = $("#userNameInput");
+  const nameNextBtn = $("#nameNextBtn");
+  const onboardingTagGrid = $("#onboardingTagGrid");
+  const onboardingCounter = $("#onboardingCounter");
+  const interestsNextBtn = $("#interestsNextBtn");
+  let generationTimer = null;
+
+  userNameInput.addEventListener("input", () => {
+    nameNextBtn.disabled = userNameInput.value.trim().length === 0;
+  });
+
+  nameForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    userName = userNameInput.value.trim();
+    renderOnboardingTags();
+    showScreen("interests");
+  });
+
+  function renderOnboardingTags() {
+    onboardingTagGrid.innerHTML = "";
+    PRESET_TAGS.forEach((tag) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "onboarding-tag" + (selectedTags.includes(tag) ? " selected" : "");
+      button.textContent = tag;
+      button.setAttribute("aria-pressed", selectedTags.includes(tag));
+      button.disabled = selectedTags.length >= MAX_TAGS && !selectedTags.includes(tag);
+      button.addEventListener("click", () => {
+        if (selectedTags.includes(tag)) {
+          selectedTags = selectedTags.filter((item) => item !== tag);
+        } else if (selectedTags.length < MAX_TAGS) {
+          selectedTags = [...selectedTags, tag];
+        }
+        renderOnboardingTags();
+      });
+      onboardingTagGrid.appendChild(button);
+    });
+    onboardingCounter.textContent = `${selectedTags.length} / ${MAX_TAGS} 選択中`;
+    interestsNextBtn.disabled = selectedTags.length < 2;
+  }
+
+  interestsNextBtn.addEventListener("click", () => {
+    applyUserProfile();
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ name: userName, tags: selectedTags }));
+    $("#generatingTopics").textContent = selectedTags.join("・");
+    showScreen("generating");
+    startGenerationPreview();
+  });
+
+  function startGenerationPreview() {
+    clearTimeout(generationTimer);
+    const statusItems = document.querySelectorAll(".generating-status-item");
+    statusItems.forEach((item, index) => item.classList.toggle("active", index === 0));
+    generationTimer = setTimeout(() => {
+      statusItems.forEach((item, index) => item.classList.toggle("active", index <= 1));
+    }, 650);
+    generationTimer = setTimeout(() => {
+      statusItems.forEach((item) => item.classList.add("active"));
+    }, 1250);
+    generationTimer = setTimeout(() => {
+      renderTagGrid();
+      showScreen("home");
+    }, 1900);
+  }
+
+  function applyUserProfile() {
+    $("#greetingName").textContent = userName;
+    $("#profileName").textContent = `${userName}さん`;
+    $("#profileAvatar").textContent = userName.slice(0, 1).toUpperCase();
+    renderHomeTags();
+  }
+
+  function renderHomeTags() {
+    const homeTags = $(".home-tags");
+    homeTags.innerHTML = selectedTags.map((tag) => `<span class="home-tag">${tag}</span>`).join("");
+  }
 
   // ===== トースト =====
   let toastTimer = null;
@@ -144,9 +240,36 @@
     });
   }
 
+  function renderHeroPlayState() {
+    const button = $("#heroPlayBtn");
+    const icon = button.querySelector("svg");
+    const isPlaying = state.isPlaying;
+    button.classList.toggle("playing", isPlaying);
+    button.setAttribute("aria-label", isPlaying ? "今日の番組を一時停止" : "今日の番組を再生");
+    icon.innerHTML = isPlaying
+      ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>'
+      : '<path d="M8 5v14l11-7z"/>';
+  }
+
+  function renderMiniPlayer() {
+    const isVisible = (state.screen === "home" || state.screen === "profile") && state.isPlaying;
+    const chapter = currentChapter();
+    miniPlayer.hidden = !isVisible;
+    $("#miniPlayerTitle").textContent = chapter.title;
+    $("#miniPlayerSubtitle").textContent = `${state.currentChapterIndex + 1} / ${PROGRAM.chapters.length} ・ 再生中`;
+    miniPlayerToggle.setAttribute("aria-label", state.isPlaying ? "一時停止" : "再生");
+    $("#miniPlayerIcon").innerHTML = state.isPlaying
+      ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>'
+      : '<path d="M8 5v14l11-7z"/>';
+  }
+
   $("#heroPlayBtn").addEventListener("click", () => {
+    if (state.isPlaying) {
+      togglePlay();
+      return;
+    }
     showScreen("player");
-    if (!state.isPlaying) togglePlay();
+    togglePlay();
   });
 
   // ===== プレイヤー画面 =====
@@ -241,6 +364,7 @@
     renderLyrics();
     renderProgress();
     renderPlaylist();
+    renderMiniPlayer();
   }
 
   function setPlayIcon(playing) {
@@ -253,6 +377,8 @@
   function togglePlay() {
     state.isPlaying = !state.isPlaying;
     setPlayIcon(state.isPlaying);
+    renderHeroPlayState();
+    renderMiniPlayer();
     if (state.isPlaying) startTicking(); else stopTicking();
   }
 
@@ -349,7 +475,18 @@
     renderHistory();
     buildWaveform();
     loadChapter(0);
-    showScreen("home");
+    const savedProfile = JSON.parse(localStorage.getItem(ONBOARDING_STORAGE_KEY) || "null");
+    if (savedProfile && savedProfile.name && Array.isArray(savedProfile.tags)) {
+      userName = savedProfile.name;
+      selectedTags = savedProfile.tags.slice(0, MAX_TAGS);
+      applyUserProfile();
+      renderTagGrid();
+      showScreen("home");
+    } else {
+      renderOnboardingTags();
+      showScreen("name");
+    }
+    renderHeroPlayState();
   }
 
   init();

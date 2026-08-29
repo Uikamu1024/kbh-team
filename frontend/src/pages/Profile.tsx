@@ -1,16 +1,30 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiError, getUser, putUserSettings, putUserTags, regenerateLatestProgram } from "@/lib/api";
+import { useNavigate } from "react-router-dom";
+import {
+  ApiError,
+  createAdditionalProgram,
+  getUser,
+  putUserSettings,
+  putUserTags,
+  regenerateLatestProgram,
+} from "@/lib/api";
 import { useUserId } from "@/lib/useUserId";
 import { getDisplayName, setDisplayName as saveDisplayName } from "@/lib/user";
+import { applyTheme, getStoredTheme, type Theme } from "@/lib/theme";
 import { MIN_TAGS } from "@/lib/presetTags";
 import { TagPicker } from "@/components/TagPicker";
 import type { UserProfile } from "@/lib/types";
 
 const LENGTH_OPTIONS = [5, 10, 15] as const;
+const THEME_OPTIONS: { value: Theme; label: string }[] = [
+  { value: "light", label: "ライト" },
+  { value: "dark", label: "ダーク" },
+];
 
 type LoadState = { status: "loading" } | { status: "error" } | { status: "ready" };
 
 export default function Profile() {
+  const navigate = useNavigate();
   const { userId } = useUserId();
   const [result, setResult] = useState<{ key: string; status: "ready" | "error" } | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -20,10 +34,12 @@ export default function Profile() {
   const [lengthMinutes, setLengthMinutes] = useState<5 | 10 | 15>(10);
   const [toast, setToast] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [addingProgram, setAddingProgram] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [displayName, setDisplayNameState] = useState(getDisplayName());
   const [nameEditorOpen, setNameEditorOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState(displayName);
+  const [theme, setTheme] = useState<Theme>(getStoredTheme());
   const isFirstTagsRender = useRef(true);
   const requestKey = `${userId}:${attempt}`;
 
@@ -42,14 +58,21 @@ export default function Profile() {
         isFirstTagsRender.current = true;
         setResult({ key, status: "ready" });
       })
-      .catch(() => {
-        if (!cancelled) setResult({ key, status: "error" });
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.code === "USER_NOT_FOUND") {
+          // DBリセット等でuserIdが存在しなくなっている。入口（RootGate）の
+          // 自動復旧に任せる（古いIDを破棄して新規発行→オンボーディングへ）。
+          navigate("/", { replace: true });
+          return;
+        }
+        setResult({ key, status: "error" });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [userId, attempt]);
+  }, [userId, attempt, navigate]);
 
   const state: LoadState =
     result?.key === requestKey ? { status: result.status } : { status: "loading" };
@@ -102,6 +125,31 @@ export default function Profile() {
     }
   }
 
+  // デモ用：1日1回の制限を回避して番組をもう1本追加生成する。既存の最新番組は
+  // 置き換えず、履歴に追加される（ホームの「今日の番組」もこの新しい番組に
+  // なる。作成日時が最新のものを表示する仕様のため）。
+  async function handleAddDemoProgram() {
+    if (!userId || addingProgram) return;
+    setAddingProgram(true);
+    try {
+      await createAdditionalProgram(userId);
+      showToast("デモ用に番組をもう1本追加しました");
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "ALREADY_GENERATING") {
+        showToast("前回のリクエストを処理中です。しばらく待ってから再度お試しください");
+      } else {
+        showToast("追加生成に失敗しました");
+      }
+    } finally {
+      setAddingProgram(false);
+    }
+  }
+
+  function handleThemeChange(next: Theme) {
+    applyTheme(next);
+    setTheme(next);
+  }
+
   function openNameEditor() {
     setNameDraft(displayName);
     setNameEditorOpen(true);
@@ -131,7 +179,7 @@ export default function Profile() {
         <button
           type="button"
           onClick={() => setAttempt((n) => n + 1)}
-          className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-[#06120a]"
+          className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white"
         >
           再試行
         </button>
@@ -144,7 +192,7 @@ export default function Profile() {
   return (
     <div className="pt-4">
       <section className="flex items-center gap-3.5">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-[#0f3d24] text-xl font-bold text-[#06120a]">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent text-xl font-bold text-white">
           {displayName.slice(0, 1)}
         </div>
         <div className="min-w-0 flex-1">
@@ -165,7 +213,7 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={handleSaveName}
-                className="shrink-0 rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-[#06120a]"
+                className="shrink-0 rounded-full bg-signal px-3 py-1.5 text-xs font-semibold text-white"
               >
                 保存
               </button>
@@ -219,7 +267,6 @@ export default function Profile() {
               saveSettings({ deliveryTime: e.target.value, lengthMinutes });
             }}
             className="shrink-0 rounded-lg border border-bg-elevated-3 bg-bg-elevated-2 px-2.5 py-1.5 text-sm font-semibold text-text-primary"
-            style={{ colorScheme: "dark" }}
           />
         </div>
 
@@ -239,11 +286,34 @@ export default function Profile() {
                 }}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                   lengthMinutes === minutes
-                    ? "bg-accent text-[#06120a]"
+                    ? "bg-signal text-white"
                     : "text-text-secondary hover:text-text-primary"
                 }`}
               >
                 {minutes}分
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 border-t border-bg-elevated-3 py-4">
+          <div className="min-w-0">
+            <p className="m-0 mb-0.5 text-sm font-semibold">外観</p>
+            <p className="m-0 text-xs text-text-tertiary">画面の配色を切り替えます</p>
+          </div>
+          <div className="flex shrink-0 gap-0.5 rounded-full bg-bg-elevated-2 p-[3px]">
+            {THEME_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleThemeChange(option.value)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  theme === option.value
+                    ? "bg-signal text-white"
+                    : "text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                {option.label}
               </button>
             ))}
           </div>
@@ -265,6 +335,23 @@ export default function Profile() {
             className="shrink-0 rounded-full border border-danger px-3.5 py-2 text-[13px] font-semibold text-danger transition-colors hover:bg-danger hover:text-white disabled:cursor-not-allowed disabled:border-bg-elevated-3 disabled:text-text-tertiary disabled:hover:bg-transparent"
           >
             {resetting ? "作り直しています…" : "作り直す"}
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 border-t border-bg-elevated-3 py-4">
+          <div className="min-w-0">
+            <p className="m-0 mb-0.5 text-sm font-semibold">デモ用に番組を追加</p>
+            <p className="m-0 text-xs text-text-tertiary">
+              1日1本の制限を無視して、履歴に番組をもう1本追加します
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={addingProgram}
+            onClick={handleAddDemoProgram}
+            className="shrink-0 rounded-full bg-signal px-3.5 py-2 text-[13px] font-semibold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {addingProgram ? "生成しています…" : "追加生成する"}
           </button>
         </div>
       </section>

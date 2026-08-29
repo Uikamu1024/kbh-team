@@ -1,20 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ApiError, getAudioUrl, getLatestProgram, getProgram } from "@/lib/api";
-import { useUserId } from "@/lib/useUserId";
+import { usePlayback } from "@/lib/PlaybackContext";
 import { formatSecondsAsClock } from "@/lib/format";
-import { concatenateWavBuffers } from "@/lib/wav";
-import type { Program } from "@/lib/types";
-
-// バックエンドはチャプターごとに別々の音声ファイルを配信するが（audioUrl参照）、
-// <audio>のsrcをチャプターごとに切り替えて連続再生しようとすると、切り替えの
-// たびにplay()を呼び直す必要がありブラウザの自動再生制限で止まってしまう。
-// そのため全チャプターの音声を一度取得し、1本のWAVに結合して単一の<audio>で
-// 再生する（最初の1回のplay()だけで最後まで通しで再生できる）。
-type LoadState =
-  | { status: "loading" }
-  | { status: "error" }
-  | { status: "ready"; program: Program; audioUrl: string; chapterDurations: number[] };
 
 const WAVEFORM_BAR_COUNT = 48;
 
@@ -40,146 +27,56 @@ export default function Player() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const programIdParam = searchParams.get("programId");
-  const autoplay = searchParams.get("autoplay") === "1";
+  const autoplayParam = searchParams.get("autoplay") === "1";
+  const playback = usePlayback();
 
-  const { userId } = useUserId();
-  const [result, setResult] = useState<{ key: string; state: LoadState } | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [attempt, setAttempt] = useState(0);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const objectUrlRef = useRef<string | null>(null);
-  const requestKey = `${programIdParam}:${userId}:${attempt}`;
-
+  // 画面を開いたときだけ、必要ならソースを切り替える。すでに同じ番組が
+  // 読み込み済み（例：ホームからの遷移で再生中）ならここでは何もせず、
+  // 再生を途切れさせない。
   useEffect(() => {
-    let cancelled = false;
-    const key = `${programIdParam}:${userId}:${attempt}`;
-
-    const load = programIdParam
-      ? getProgram(programIdParam)
-      : userId
-        ? getLatestProgram(userId)
-        : null;
-
-    if (!load) return;
-
-    load
-      .then(async (program) => {
-        if (program.chapters.length === 0) throw new Error("no chapters");
-        const buffers = await Promise.all(
-          program.chapters.map((c) =>
-            fetch(getAudioUrl(program.id, c.id)).then((res) => {
-              if (!res.ok) throw new Error(`audio fetch failed: ${res.status}`);
-              return res.arrayBuffer();
-            }),
-          ),
-        );
-        if (cancelled) return;
-        const { blob, chapterDurations } = concatenateWavBuffers(buffers);
-
-        if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-        const audioUrl = URL.createObjectURL(blob);
-        objectUrlRef.current = audioUrl;
-
-        setResult({ key, state: { status: "ready", program, audioUrl, chapterDurations } });
-        setCurrentTime(0);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        if (err instanceof ApiError && err.code === "PROGRAM_NOT_FOUND") {
-          setResult({ key, state: { status: "not-ready" } });
-        } else {
-          setResult({ key, state: { status: "error" } });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [programIdParam, userId, attempt]);
-
-  useEffect(() => {
-    return () => {
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    };
-  }, []);
-
-  const state: LoadState = result?.key === requestKey ? result.state : { status: "loading" };
-
-  const program = state.status === "ready" ? state.program : null;
-  const chapterDurations = state.status === "ready" ? state.chapterDurations : [];
-  // 各チャプターの結合トラック内での開始時刻（秒）。boundaries[i] <= currentTime
-  // となる最後のiが現在のチャプター。チャプター数は数件程度なのでメモ化はせず
-  // 毎レンダー計算する。
-  const chapterBoundaries: number[] = [];
-  {
-    let acc = 0;
-    for (const duration of chapterDurations) {
-      chapterBoundaries.push(acc);
-      acc += duration;
+    if (programIdParam) {
+      const alreadyLoaded =
+        playback.source?.type === "program" && playback.source.programId === programIdParam;
+      if (!alreadyLoaded) {
+        playback.loadProgram(programIdParam, { autoplay: autoplayParam });
+      }
+    } else if (!playback.source) {
+      playback.loadLatest({ autoplay: autoplayParam });
     }
-  }
+    // 初回マウント時のソース確定のみを目的とするため、programIdParam以外の
+    // 変化では再実行しない（依存に含めるとplayback参照の変化のたびに
+    // 再読み込みしてしまう）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programIdParam]);
 
-  let chapterIndex = 0;
-  for (let i = 0; i < chapterBoundaries.length; i++) {
-    if (currentTime >= chapterBoundaries[i]) chapterIndex = i;
-  }
-
+  const { status, program, chapterIndex, chapterDurations, chapterElapsed, isPlaying } = playback;
   const chapter = program?.chapters[chapterIndex] ?? null;
-  const chapterStart = chapterBoundaries[chapterIndex] ?? 0;
-  const chapterElapsed = Math.max(0, currentTime - chapterStart);
   const lines = useMemo(
     () => (chapter ? chapter.script.split("\n").filter((line) => line.trim() !== "") : []),
     [chapter],
   );
+  // 各行の開始位置（進捗比率0〜1）。チャプターには文単位のタイムスタンプが
+  // 無いため（docs/api-contract.yamlのx-open-questions参照）、行の文字数に
+  // 比例して読み上げ時間を按分する。均等割りだと長い行・短い行で実際の音声と
+  // 数秒単位でずれるため、TTSの読み上げ速度がおおよそ文字数に比例するという
+  // 前提（backend側のestimatedCharactersPerMinuteと同じ考え方）で近似する。
+  const lineStartRatios = useMemo(() => {
+    const totalChars = lines.reduce((sum, line) => sum + line.length, 0);
+    if (totalChars === 0) return lines.map((_, i) => i / Math.max(1, lines.length));
+    const ratios: number[] = [];
+    let acc = 0;
+    for (const line of lines) {
+      ratios.push(acc / totalChars);
+      acc += line.length;
+    }
+    return ratios;
+  }, [lines]);
   const waveform = useMemo(
     () => (chapter ? buildWaveformHeights(chapter.id) : []),
     [chapter],
   );
 
-  // 結合済みの音声が新しく読み込まれた直後、autoplay指定があれば1回だけ再生開始する。
-  // 以降チャプターが進んでも同じ<audio>が鳴り続けるだけなのでplay()の再呼び出しは不要
-  // （チャプターごとにsrcを切り替えていた旧実装では、この再呼び出しが自動再生制限に
-  // 引っかかって連続再生できなかった）。
-  useEffect(() => {
-    if (state.status !== "ready" || !audioRef.current) return;
-    if (autoplay) {
-      audioRef.current.play().catch(() => setIsPlaying(false));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.status === "ready" ? state.audioUrl : null]);
-
-  function togglePlay() {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (audio.paused) {
-      audio.play().catch(() => {});
-    } else {
-      audio.pause();
-    }
-  }
-
-  function goToChapter(index: number) {
-    const audio = audioRef.current;
-    if (!audio || chapterBoundaries.length === 0) return;
-    const total = chapterBoundaries.length;
-    const target = ((index % total) + total) % total;
-    audio.currentTime = chapterBoundaries[target];
-    setCurrentTime(chapterBoundaries[target]);
-  }
-
-  function handleEnded() {
-    setIsPlaying(false);
-  }
-
-  function handleSeek(ratio: number) {
-    const audio = audioRef.current;
-    const duration = chapterDurations[chapterIndex];
-    if (!audio || !chapter || duration === undefined) return;
-    audio.currentTime = chapterStart + ratio * duration;
-  }
-
-  if (state.status === "loading") {
+  if (status === "loading") {
     return (
       <div className="flex flex-1 items-center justify-center">
         <p className="text-sm text-text-tertiary">読み込んでいます…</p>
@@ -187,7 +84,7 @@ export default function Player() {
     );
   }
 
-  if (state.status === "not-ready") {
+  if (status === "not-ready") {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
         <p className="text-[15px] font-semibold">まだ番組がありません</p>
@@ -197,7 +94,7 @@ export default function Player() {
         <button
           type="button"
           onClick={() => navigate("/home")}
-          className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-[#06120a]"
+          className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white"
         >
           ホームへ戻る
         </button>
@@ -205,14 +102,14 @@ export default function Player() {
     );
   }
 
-  if (state.status === "error" || !program || !chapter) {
+  if (status === "error" || !program || !chapter) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
         <p className="text-sm text-text-secondary">番組の取得に失敗しました。</p>
         <button
           type="button"
-          onClick={() => setAttempt((n) => n + 1)}
-          className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-[#06120a]"
+          onClick={playback.retry}
+          className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white"
         >
           再試行
         </button>
@@ -222,45 +119,35 @@ export default function Player() {
 
   const chapterDuration = chapterDurations[chapterIndex] ?? chapter.durationSec;
   const progressRatio = chapterDuration > 0 ? chapterElapsed / chapterDuration : 0;
-  const activeLineIndex = Math.min(
-    lines.length - 1,
-    Math.floor(progressRatio * lines.length),
-  );
+  let activeLineIndex = 0;
+  for (let i = 0; i < lineStartRatios.length; i++) {
+    if (progressRatio >= lineStartRatios[i]) activeLineIndex = i;
+  }
   const playedBars = Math.round(waveform.length * progressRatio);
 
   return (
     <div className="pt-2">
-      <audio
-        ref={audioRef}
-        src={state.status === "ready" ? state.audioUrl : undefined}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onEnded={handleEnded}
-      />
-
       <div
-        className="relative flex overflow-hidden rounded-[22px] p-6"
-        style={{
-          aspectRatio: "1 / 0.82",
-          background: "linear-gradient(160deg, #1c4d33, #0e2a1c 55%, #0a1a12)",
-        }}
+        className="relative flex min-h-[180px] overflow-hidden rounded-2xl p-6"
+        style={{ background: "#6a9c86" }}
       >
         <div
-          className="pointer-events-none absolute -inset-[40%] blur-[10px]"
+          className="pointer-events-none absolute -inset-[40%] blur-[16px]"
           style={{
-            background:
-              "radial-gradient(circle at 70% 20%, rgba(34, 197, 94, 0.35), transparent 60%)",
+            background: "radial-gradient(circle at 76% 18%, rgba(255,255,255,.5), transparent 52%)",
           }}
         />
-        <div className="relative z-[1] flex flex-col justify-end gap-2.5">
+        <span className="pointer-events-none absolute bottom-[18px] right-5 text-[10px] tracking-[.14em] text-white/65">
+          DAILY / {String(chapterIndex + 1).padStart(2, "0")}
+        </span>
+        <div className="relative z-[1] flex flex-col justify-end gap-2">
           {lines.map((line, i) => (
             <p
               key={i}
               className={`m-0 font-semibold leading-relaxed transition-all duration-300 ${
                 i === activeLineIndex
-                  ? "translate-x-0.5 text-[17px] text-white"
-                  : "text-[15px] text-white/35"
+                  ? "translate-x-0.5 text-[15px] text-white"
+                  : "text-[13px] text-white/50"
               }`}
             >
               {line}
@@ -269,34 +156,34 @@ export default function Player() {
         </div>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-4.5">
         <a
           href={chapter.sourceUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs lowercase text-text-tertiary hover:text-text-secondary"
+          className="text-xs text-signal hover:underline"
         >
           {chapter.sourceName}
         </a>
-        <h2 className="m-0 mt-1 text-[19px] font-bold leading-snug">{chapter.title}</h2>
+        <h2 className="m-0 mt-1.5 text-[19px] font-extrabold leading-snug">{chapter.title}</h2>
         <p className="m-0 mt-1.5 text-xs text-text-secondary">
           {chapterIndex + 1} / {program.chapters.length}
         </p>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-4.5">
         <div
-          className="flex h-10 cursor-pointer items-center gap-[2.5px] py-1"
+          className="flex h-[42px] cursor-pointer items-center gap-[3px] py-1.5"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
-            handleSeek(Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)));
+            playback.seek(Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)));
           }}
         >
           {waveform.map((h, i) => (
             <div
               key={i}
-              className={`min-w-[2px] flex-1 rounded-sm transition-colors ${
-                i < playedBars ? "bg-accent" : "bg-bg-elevated-3"
+              className={`min-w-[3px] flex-1 rounded-sm transition-colors ${
+                i < playedBars ? "bg-signal" : "bg-bg-elevated-3"
               }`}
               style={{ height: h }}
             />
@@ -308,12 +195,12 @@ export default function Player() {
         </div>
       </div>
 
-      <div className="my-1.5 flex items-center justify-center gap-7">
+      <div className="my-1.5 flex items-center justify-center gap-8">
         <button
           type="button"
           aria-label="前の記事"
-          onClick={() => goToChapter(chapterIndex - 1)}
-          className="flex items-center justify-center text-text-primary transition-transform hover:opacity-80 active:scale-90"
+          onClick={() => playback.goToChapter(chapterIndex - 1)}
+          className="flex min-h-[46px] min-w-[46px] items-center justify-center text-text-primary transition-transform hover:opacity-80 active:scale-90"
         >
           <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
             <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
@@ -322,8 +209,8 @@ export default function Player() {
         <button
           type="button"
           aria-label={isPlaying ? "一時停止" : "再生"}
-          onClick={togglePlay}
-          className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-white text-[#0d0d0f] transition-transform hover:scale-[1.04] active:scale-95"
+          onClick={playback.toggle}
+          className="flex h-16 w-16 items-center justify-center rounded-full bg-text-primary text-bg shadow-md transition-transform hover:scale-[1.04] active:scale-95"
         >
           {isPlaying ? (
             <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
@@ -338,8 +225,8 @@ export default function Player() {
         <button
           type="button"
           aria-label="次の記事"
-          onClick={() => goToChapter(chapterIndex + 1)}
-          className="flex items-center justify-center text-text-primary transition-transform hover:opacity-80 active:scale-90"
+          onClick={() => playback.goToChapter(chapterIndex + 1)}
+          className="flex min-h-[46px] min-w-[46px] items-center justify-center text-text-primary transition-transform hover:opacity-80 active:scale-90"
         >
           <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
             <path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z" />
@@ -348,22 +235,22 @@ export default function Player() {
       </div>
 
       <section>
-        <h2 className="mb-3 mt-5 text-sm font-bold">この番組のチャプター</h2>
-        <ul className="flex flex-col gap-1">
+        <h2 className="mb-2.5 mt-7.5 text-sm font-extrabold">この番組のチャプター</h2>
+        <ul className="flex flex-col gap-0 border-t border-bg-elevated-3">
           {program.chapters.map((c, i) => (
-            <li key={c.id}>
+            <li key={c.id} className="border-b border-bg-elevated-3">
               <button
                 type="button"
-                onClick={() => goToChapter(i)}
-                className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-bg-elevated ${
-                  i === chapterIndex ? "bg-bg-elevated" : ""
+                onClick={() => playback.goToChapter(i)}
+                className={`flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-bg-elevated-2 ${
+                  i === chapterIndex ? "border-l-4 border-signal bg-signal-soft pl-1.5" : ""
                 }`}
               >
                 {i === chapterIndex ? (
                   <span className="flex h-3.5 w-5 shrink-0 items-end justify-center gap-0.5">
-                    <span className="eq-bar h-2/5 w-[3px] bg-accent" />
-                    <span className="eq-bar h-full w-[3px] bg-accent [animation-delay:-0.6s]" />
-                    <span className="eq-bar h-2/3 w-[3px] bg-accent [animation-delay:-0.3s]" />
+                    <span className="eq-bar h-2/5 w-[3px] bg-signal" />
+                    <span className="eq-bar h-full w-[3px] bg-signal [animation-delay:-0.6s]" />
+                    <span className="eq-bar h-2/3 w-[3px] bg-signal [animation-delay:-0.3s]" />
                   </span>
                 ) : (
                   <span className="w-5 shrink-0 text-center text-xs tabular-nums text-text-tertiary">
@@ -373,7 +260,7 @@ export default function Player() {
                 <span className="min-w-0 flex-1">
                   <p
                     className={`m-0 truncate text-sm font-semibold ${
-                      i === chapterIndex ? "text-accent" : "text-text-primary"
+                      i === chapterIndex ? "text-signal" : "text-text-primary"
                     }`}
                   >
                     {c.title}

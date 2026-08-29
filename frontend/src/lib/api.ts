@@ -1,6 +1,7 @@
 import type {
   ApiErrorBody,
   ApiErrorCode,
+  BatchRunResponse,
   CreateUserResponse,
   HealthResponse,
   Program,
@@ -127,10 +128,27 @@ export function getProgram(programId: string): Promise<Program> {
   return apiFetch<Program>(`/api/programs/${programId}`);
 }
 
+// デモ用：1日1回の制限を回避して番組をもう1本追加生成する
+// （既存の最新番組は置き換えず、履歴に追加される）。
+export function createAdditionalProgram(userId: string): Promise<Program> {
+  return apiFetch<Program>(
+    `/api/users/${userId}/programs`,
+    { method: "POST" },
+    LONG_RUNNING_TIMEOUT_MS,
+  );
+}
+
 export function getAudioUrl(programId: string, chapterId: string): string {
   return `${API_BASE_URL}/api/audio/${programId}/${chapterId}`;
 }
 
 export function getHealth(): Promise<HealthResponse> {
   return apiFetch<HealthResponse>("/api/health");
+}
+
+// 開発・デモ用：全ユーザー分の番組をまとめて生成するバッチを起動する
+// （本来は毎朝6:00相当のcron想定のエンドポイント。「自分の分だけ」生成する
+// 専用APIはまだ無いため、ホーム画面の手動生成ボタンから暫定的に使う）。
+export function runBatch(): Promise<BatchRunResponse> {
+  return apiFetch<BatchRunResponse>("/api/batch/run", { method: "POST" });
 }

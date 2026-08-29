@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 
 	"backend/internal/domain"
@@ -42,17 +43,26 @@ func ScoreAndSelect(ctx context.Context, scorer llm.LLM, topics []domain.Topic, 
 		return nil, 0, nil
 	}
 
+	// A single topic failing to score (e.g. a transient LLM rate limit that
+	// outlasted the provider's own retries) shouldn't discard every other
+	// topic that scored successfully, so failures are skipped rather than
+	// aborting the whole batch. Only return an error when nothing could be
+	// scored at all.
 	scored := make([]domain.ScoredTopic, 0, len(topics))
 	for _, topic := range topics {
 		score, isNew, err := scorer.ScoreTopic(ctx, topic, previousTopics)
 		if err != nil {
-			return nil, 0, fmt.Errorf("score topic %q: %w", topic.Primary.Title, err)
+			log.Printf("pipeline: skipping topic %q: score failed: %v", topic.Primary.Title, err)
+			continue
 		}
 		scored = append(scored, domain.ScoredTopic{
 			Topic:           topic,
 			ImportanceScore: score,
 			IsNew:           isNew,
 		})
+	}
+	if len(scored) == 0 {
+		return nil, 0, fmt.Errorf("score topics: all %d topics failed", len(topics))
 	}
 
 	ranked, changeCount := rankAndSelectTopics(scored, lengthMinutes)

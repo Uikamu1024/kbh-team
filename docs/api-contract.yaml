@@ -271,6 +271,59 @@ paths:
                   code: USER_NOT_FOUND
                   message: "指定されたユーザーが見つかりません"
 
+    post:
+      operationId: createAdditionalProgram
+      tags: [programs, demo]
+      summary: 保存済みのtags/lengthMinutesで番組をもう1本追加生成する（デモ用）
+      description: |
+        通常、番組は1日1回のバッチ（`POST /api/batch/run`）でのみ増える
+        （同じ配信日にすでに番組があれば`batch/run`は何もしない）。この
+        エンドポイントはその制限を回避し、デモで「履歴に複数の番組が
+        並んでいる」様子を見せるために新しい番組をもう1本追加生成する。
+
+        `POST /api/users/{userId}/programs/latest/regenerate`とは異なり、
+        既存の最新番組を**置き換えず**、新しい番組として履歴に追加する
+        （`POST /api/batch/run`が内部で行う1ユーザー分の生成処理を、
+        1日1回の制限だけ外して直接呼べるようにしたもの）。
+
+        同期実行のため、`POST /api/demo/generate`と同様にレスポンスまで
+        数十秒〜1分程度かかる想定でタイムアウトを設定すること。
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "201":
+          description: 生成成功。新しく追加された番組を返す
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
+        "404":
+          description: "`userId` が存在しない"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: USER_NOT_FOUND
+                  message: "指定されたユーザーが見つかりません"
+        "409":
+          description: "同じユーザーの生成が既に進行中（regenerateと同じ排他制御を共有）"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: ALREADY_GENERATING
+                  message: "前回のリクエストを処理中です。しばらく待ってから再度お試しください"
+        "502":
+          description: "外部プロバイダの呼び出し失敗（`POST /api/demo/generate`と同じ`UPSTREAM_*`のcode体系）"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/users/{userId}/programs/latest/regenerate:
     post:
       operationId: regenerateLatestProgram

@@ -2,8 +2,10 @@ package fetcher
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,30 +17,34 @@ import (
 
 const jinaReaderURL = "https://r.jina.ai/"
 
-// testWhitelist is a temporary whitelist for local development. Replace it
-// with the agreed source list when the target sites are decided.
-var testWhitelist = map[string][]string{
-	"ai": {
-		"https://example.com/ai/article-1",
-		"https://example.com/ai/article-2",
-		"https://example.com/ai/article-3",
-	},
-	"technology": {
-		"https://example.com/technology/article-1",
-		"https://example.com/technology/article-2",
-		"https://example.com/technology/article-3",
-	},
-	"テクノロジー": {
-		"https://example.com/technology/article-1",
-		"https://example.com/technology/article-2",
-		"https://example.com/technology/article-3",
-	},
-	"ニュース": {
-		"https://example.com/news/article-1",
-		"https://example.com/news/article-2",
-		"https://example.com/news/article-3",
-	},
+// maxArticlesPerTag caps how many articles are fetched per tag per
+// generation. jina.ai Reader allows unauthenticated requests at a lower rate
+// limit (see https://jina.ai/reader/), and each article also costs one LLM
+// scoring call downstream; keeping this modest avoids hitting rate limits
+// and keeps total generation time reasonable when a user selects up to 3
+// tags in one run (3 tags x 5 articles was measured to occasionally exceed
+// a minute and trip free-tier LLM rate limits mid-run).
+const maxArticlesPerTag = 3
+
+// tagFeeds maps preset tags (see frontend/src/lib/presetTags.ts) to a public
+// RSS feed to source real articles from, replacing the previous placeholder
+// example.com whitelist. Coverage is best-effort: some tags share a feed
+// because a closer match isn't publicly available (e.g. 京都/旅行 both fall
+// back to the general "local" feed). Adjust here if better sources are found.
+var tagFeeds = map[string]string{
+	"ai":   "https://news.yahoo.co.jp/rss/topics/it.xml",
+	"京都":   "https://news.yahoo.co.jp/rss/topics/local.xml",
+	"ゲーム":  "https://news.yahoo.co.jp/rss/topics/it.xml",
+	"音楽":   "https://news.yahoo.co.jp/rss/topics/entertainment.xml",
+	"スポーツ": "https://news.yahoo.co.jp/rss/topics/sports.xml",
+	"ビジネス": "https://news.yahoo.co.jp/rss/topics/business.xml",
+	"映画":   "https://news.yahoo.co.jp/rss/topics/entertainment.xml",
+	"旅行":   "https://news.yahoo.co.jp/rss/topics/local.xml",
 }
+
+// defaultFeed is used for tags with no specific mapping above, so an
+// unrecognized tag still yields real articles instead of nothing.
+const defaultFeed = "https://news.yahoo.co.jp/rss/topics/domestic.xml"
 
 // JinaFetcher retrieves article text through the jina.ai Reader API.
 type JinaFetcher struct {
@@ -54,19 +60,28 @@ func NewJinaFetcher(client *http.Client) *JinaFetcher {
 	return &JinaFetcher{client: client}
 }
 
-// FetchArticles fetches the whitelisted articles for each requested tag.
-// When JINA_AI_API_KEY is unset, it returns deterministic local mock articles.
+// FetchArticles discovers real article URLs for each requested tag via its
+// mapped RSS feed (tagFeeds), then fetches each one through jina.ai Reader.
+// Used by cmd/demo's tag-based live-fetch path
+// (backend/docs/pipeline/01-fetch.md). JINA_AI_API_KEY is optional; real
+// fetches are attempted either way (see fetchArticle). A single article
+// failing to fetch (bot-blocked, removed, etc.) is skipped rather than
+// aborting the whole batch, since that's common enough with real websites
+// that it shouldn't take down generation for every other article that did
+// succeed.
 func (f *JinaFetcher) FetchArticles(ctx context.Context, tags []string) ([]domain.Article, error) {
-	if strings.TrimSpace(os.Getenv("JINA_AI_API_KEY")) == "" {
-		return mockArticles(tags, "jina"), nil
-	}
-
 	articles := make([]domain.Article, 0)
 	for _, tag := range tags {
-		for _, sourceURL := range limitedURLs(whitelistURLs(tag)) {
-			article, err := f.FetchArticle(ctx, sourceURL)
+		sourceURLs, err := fetchFeedURLs(ctx, f.client, feedURLForTag(tag), maxArticlesPerTag)
+		if err != nil {
+			return nil, fmt.Errorf("fetch RSS feed for tag %q: %w", tag, err)
+		}
+
+		for _, sourceURL := range sourceURLs {
+			article, err := f.fetchArticle(ctx, sourceURL)
 			if err != nil {
-				return nil, fmt.Errorf("fetch article %q for tag %q: %w", sourceURL, tag, err)
+				log.Printf("fetcher: skipping article %q for tag %q: %v", sourceURL, tag, err)
+				continue
 			}
 			articles = append(articles, article)
 		}
@@ -75,12 +90,86 @@ func (f *JinaFetcher) FetchArticles(ctx context.Context, tags []string) ([]domai
 }
 
 // FetchArticle retrieves and normalizes the body for one article URL through
-// jina.ai Reader. Callers that already have RSS metadata should replace the
-// returned title, publication time, and source name with that metadata.
+// jina.ai Reader, for callers that already have their own URL (cmd/ingest,
+// which reads URLs from the RSS feeds listed in config/article.json rather
+// than tagFeeds — see backend/docs/generation/02-ingestion.md). Unlike
+// fetchArticle (used internally by FetchArticles' tag-based cmd/demo path),
+// this respects MockMode so cmd/ingest can be run against a local database
+// without a jina.ai API key. Callers that already have RSS metadata should
+// replace the returned title, publication time, and source name with that
+// metadata.
 func (f *JinaFetcher) FetchArticle(ctx context.Context, sourceURL string) (domain.Article, error) {
 	if f.MockMode() {
 		return articleFromContent("# [MOCK] article\n\nThis is a local mock article body.", sourceURL), nil
 	}
+	return f.fetchArticle(ctx, sourceURL)
+}
+
+// feedURLForTag returns the RSS feed mapped to tag, or defaultFeed if none
+// is mapped.
+func feedURLForTag(tag string) string {
+	if feedURL, ok := tagFeeds[strings.ToLower(strings.TrimSpace(tag))]; ok {
+		return feedURL
+	}
+	return defaultFeed
+}
+
+// rssFeed is the minimal RSS 2.0 shape needed to pull article links out of a
+// feed (see https://www.rssboard.org/rss-specification).
+type rssFeed struct {
+	Channel struct {
+		Items []struct {
+			Link string `xml:"link"`
+		} `xml:"item"`
+	} `xml:"channel"`
+}
+
+// fetchFeedURLs fetches feedURL directly (RSS is plain XML, so this doesn't
+// go through jina.ai Reader or Firecrawl) and returns up to limit article
+// link URLs. Shared by both fetcher providers.
+func fetchFeedURLs(ctx context.Context, client *http.Client, feedURL string, limit int) ([]string, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, feedURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("rss feed returned status %d", response.StatusCode)
+	}
+
+	var feed rssFeed
+	if err := xml.NewDecoder(response.Body).Decode(&feed); err != nil {
+		return nil, fmt.Errorf("parse rss feed: %w", err)
+	}
+
+	urls := make([]string, 0, limit)
+	for _, item := range feed.Channel.Items {
+		link := strings.TrimSpace(item.Link)
+		if link == "" {
+			continue
+		}
+		urls = append(urls, link)
+		if len(urls) >= limit {
+			break
+		}
+	}
+	return urls, nil
+}
+
+// fetchArticle performs the actual jina.ai Reader HTTP request, always live
+// (no mock fallback). Used directly by FetchArticles' tag-based cmd/demo
+// path; the exported FetchArticle wraps this with a MockMode check instead,
+// for cmd/ingest.
+func (f *JinaFetcher) fetchArticle(ctx context.Context, sourceURL string) (domain.Article, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, jinaReaderURL+sourceURL, nil)
 	if err != nil {
 		return domain.Article{}, err
@@ -149,18 +238,6 @@ func titleFromContent(content, sourceURL string) string {
 		}
 	}
 	return sourceURL
-}
-
-func whitelistURLs(tag string) []string {
-	return testWhitelist[strings.ToLower(strings.TrimSpace(tag))]
-}
-
-func limitedURLs(sourceURLs []string) []string {
-	const maxArticlesPerTag = 20
-	if len(sourceURLs) > maxArticlesPerTag {
-		return sourceURLs[:maxArticlesPerTag]
-	}
-	return sourceURLs
 }
 
 func mockArticles(tags []string, provider string) []domain.Article {
