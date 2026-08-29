@@ -61,6 +61,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/users/{userId}/programs/latest", s.getLatestProgram)
 	mux.HandleFunc("POST /api/users/{userId}/programs/latest/regenerate", s.regenerateLatestProgram)
 	mux.HandleFunc("GET /api/users/{userId}/programs", s.listPrograms)
+	mux.HandleFunc("POST /api/users/{userId}/programs", s.createAdditionalProgram)
 	mux.HandleFunc("GET /api/programs/{programId}", s.getProgram)
 	mux.HandleFunc("GET /api/audio/{programId}/{chapterId}", s.getAudio)
 	mux.HandleFunc("POST /api/demo/generate", s.generateDemo)
