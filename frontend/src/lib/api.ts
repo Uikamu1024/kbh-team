@@ -128,6 +128,16 @@ export function getProgram(programId: string): Promise<Program> {
   return apiFetch<Program>(`/api/programs/${programId}`);
 }
 
+// デモ用：1日1回の制限を回避して番組をもう1本追加生成する
+// （既存の最新番組は置き換えず、履歴に追加される）。
+export function createAdditionalProgram(userId: string): Promise<Program> {
+  return apiFetch<Program>(
+    `/api/users/${userId}/programs`,
+    { method: "POST" },
+    LONG_RUNNING_TIMEOUT_MS,
+  );
+}
+
 export function getAudioUrl(programId: string, chapterId: string): string {
   return `${API_BASE_URL}/api/audio/${programId}/${chapterId}`;
 }
