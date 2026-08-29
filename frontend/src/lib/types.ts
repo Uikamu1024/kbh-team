@@ -82,6 +82,10 @@ export interface ProgramHistoryResponse {
   total: number;
 }
 
+export interface BatchRunResponse {
+  acceptedAt: string;
+}
+
 export interface HealthResponse {
   status: "ok" | "error";
   postgres: "ok" | "error";

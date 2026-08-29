@@ -1,6 +1,7 @@
 import type {
   ApiErrorBody,
   ApiErrorCode,
+  BatchRunResponse,
   CreateUserResponse,
   HealthResponse,
   Program,
@@ -133,4 +134,11 @@ export function getAudioUrl(programId: string, chapterId: string): string {
 
 export function getHealth(): Promise<HealthResponse> {
   return apiFetch<HealthResponse>("/api/health");
+}
+
+// 開発・デモ用：全ユーザー分の番組をまとめて生成するバッチを起動する
+// （本来は毎朝6:00相当のcron想定のエンドポイント。「自分の分だけ」生成する
+// 専用APIはまだ無いため、ホーム画面の手動生成ボタンから暫定的に使う）。
+export function runBatch(): Promise<BatchRunResponse> {
+  return apiFetch<BatchRunResponse>("/api/batch/run", { method: "POST" });
 }

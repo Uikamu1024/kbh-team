@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ApiError, getLatestProgram, listPrograms } from "@/lib/api";
+import { ApiError, getLatestProgram, listPrograms, runBatch } from "@/lib/api";
 import { useUserId } from "@/lib/useUserId";
 import { getDisplayName } from "@/lib/user";
 import { formatDateLabel, formatMinutesLabel } from "@/lib/format";
@@ -18,7 +18,17 @@ export default function Home() {
   const [result, setResult] = useState<{ key: string; state: LoadState } | null>(null);
   const [history, setHistory] = useState<ProgramSummary[]>([]);
   const [attempt, setAttempt] = useState(0);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const cancelledRef = useRef(false);
   const requestKey = `${userId}:${attempt}`;
+
+  useEffect(() => {
+    cancelledRef.current = false;
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!userId) return;
@@ -53,6 +63,47 @@ export default function Home() {
 
   const state: LoadState = result?.key === requestKey ? result.state : { status: "loading" };
 
+  // 開発・デモ用の手動生成。batch/runは全ユーザー分をまとめて生成する非同期エンドポイント
+  // のため、起動後にgetLatestProgramをポーリングして自分の分の完了を待つ。
+  async function handleGenerateNow() {
+    if (!userId || generating) return;
+    setGenerating(true);
+    setGenerateError(null);
+
+    try {
+      await runBatch();
+    } catch {
+      if (!cancelledRef.current) {
+        setGenerating(false);
+        setGenerateError("生成の開始に失敗しました。もう一度お試しください。");
+      }
+      return;
+    }
+
+    const key = `${userId}:${attempt}`;
+    const maxPolls = 24; // 5秒間隔で最大2分待つ
+    for (let i = 0; i < maxPolls; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      if (cancelledRef.current) return;
+      try {
+        const program = await getLatestProgram(userId);
+        if (cancelledRef.current) return;
+        setResult({ key, state: { status: "ready", program } });
+        setGenerating(false);
+        return;
+      } catch {
+        // まだ生成中の可能性があるためポーリングを続ける
+      }
+    }
+
+    if (!cancelledRef.current) {
+      setGenerating(false);
+      setGenerateError(
+        "生成に時間がかかっています。しばらくしてからこの画面を開き直してください。",
+      );
+    }
+  }
+
   if (state.status === "loading") {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -85,6 +136,18 @@ export default function Home() {
         <p className="text-sm text-text-tertiary">
           毎朝6:00ごろに配信されます。少し待ってからもう一度開いてください。
         </p>
+        <button
+          type="button"
+          disabled={generating}
+          onClick={handleGenerateNow}
+          className="mt-4 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-[#06120a] transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {generating ? "生成しています…" : "今すぐ生成する"}
+        </button>
+        {generating && (
+          <p className="text-xs text-text-tertiary">数十秒〜1分ほどかかります</p>
+        )}
+        {generateError && <p className="text-sm text-danger">{generateError}</p>}
       </div>
     );
   }
