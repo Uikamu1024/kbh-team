@@ -32,7 +32,12 @@ import (
 
 const (
 	defaultLengthMinutes = 10
-	pipelineTimeout      = 120 * time.Second
+	// A full-length program now selects roughly one chapter per 45 assumed
+	// seconds (score.go's assumedChapterSeconds), each requiring an LLM
+	// script call and several sequential VOICEVOX requests. 120s was only
+	// ever enough because a pre-fix bug always produced exactly 1 chapter;
+	// budget generously for a real 10+ chapter run.
+	pipelineTimeout = 15 * time.Minute
 )
 
 func main() {
