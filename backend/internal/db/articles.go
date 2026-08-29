@@ -16,12 +16,13 @@ const ingestAdvisoryLockID int64 = 734_128_091
 
 // CachedArticle is an articles-table row used during ingestion.
 type CachedArticle struct {
-	ID           string
-	FeedID       string
-	TopicGroupID string
-	IsPrimary    bool
-	Article      domain.Article
-	Tags         []string
+	ID              string
+	FeedID          string
+	TopicGroupID    string
+	IsPrimary       bool
+	ImportanceScore int
+	Article         domain.Article
+	Tags            []string
 }
 
 // IngestLock holds the dedicated PostgreSQL connection for an ingestion run.
@@ -63,7 +64,7 @@ func (l *IngestLock) Release() {
 func (d *DB) FindArticleBySourceURL(ctx context.Context, sourceURL string) (CachedArticle, bool, error) {
 	article, err := scanCachedArticle(d.pool.QueryRow(ctx, `
 		SELECT id::text, feed_id, topic_group_id::text, is_primary, title, body,
-		       published_at, source_name, source_url, tags
+		       published_at, source_name, source_url, tags, COALESCE(importance_score, 0)
 		FROM articles
 		WHERE source_url = $1`, sourceURL))
 	if err == nil {
@@ -114,7 +115,7 @@ func (d *DB) MergeCachedArticleTags(ctx context.Context, article CachedArticle, 
 func (d *DB) RecentCachedArticles(ctx context.Context) ([]CachedArticle, error) {
 	rows, err := d.pool.Query(ctx, `
 		SELECT id::text, feed_id, topic_group_id::text, is_primary, title, body,
-		       published_at, source_name, source_url, tags
+		       published_at, source_name, source_url, tags, COALESCE(importance_score, 0)
 		FROM articles
 		WHERE published_at >= now() - interval '14 days'`)
 	if err != nil {
@@ -155,12 +156,12 @@ func (d *DB) StoreIngestedArticle(ctx context.Context, article CachedArticle, ma
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO articles (
 			id, feed_id, topic_group_id, is_primary, title, body, published_at,
-			source_name, source_url, tags
+			source_name, source_url, tags, importance_score
 		) VALUES (
-			$1::uuid, $2, $3::uuid, $4, $5, $6, $7, $8, $9, $10::text[]
+			$1::uuid, $2, $3::uuid, $4, $5, $6, $7, $8, $9, $10::text[], NULLIF($11, 0)
 		)`, article.ID, article.FeedID, groupID, primary, article.Article.Title,
 		article.Article.Body, article.Article.PublishedAt, article.Article.SourceName,
-		article.Article.SourceURL, article.Tags); err != nil {
+		article.Article.SourceURL, article.Tags, article.ImportanceScore); err != nil {
 		return fmt.Errorf("insert cached article: %w", err)
 	}
 
@@ -214,10 +215,10 @@ func (d *DB) StoreIngestedArticle(ctx context.Context, article CachedArticle, ma
 
 // SelectCachedTopics returns primary article groups matching user tags. When
 // excludeSeen is true, already delivered topic groups are omitted.
-func (d *DB) SelectCachedTopics(ctx context.Context, tags []string, userID string, excludeSeen bool) ([]domain.Topic, error) {
+func (d *DB) SelectCachedTopics(ctx context.Context, tags []string, userID string, excludeSeen bool) ([]domain.ScoredTopic, error) {
 	query := `
 		SELECT a.topic_group_id::text, a.title, a.body, a.published_at,
-		       a.source_name, a.source_url, g.related_count
+		       a.source_name, a.source_url, g.related_count, COALESCE(a.importance_score, 0)
 		FROM articles a
 		JOIN (
 			SELECT topic_group_id, count(*) AS related_count
@@ -243,9 +244,9 @@ func (d *DB) SelectCachedTopics(ctx context.Context, tags []string, userID strin
 	}
 	defer rows.Close()
 
-	topics := make([]domain.Topic, 0)
+	topics := make([]domain.ScoredTopic, 0)
 	for rows.Next() {
-		var topic domain.Topic
+		var topic domain.ScoredTopic
 		if err := rows.Scan(
 			&topic.TopicGroupID,
 			&topic.Primary.Title,
@@ -254,6 +255,7 @@ func (d *DB) SelectCachedTopics(ctx context.Context, tags []string, userID strin
 			&topic.Primary.SourceName,
 			&topic.Primary.SourceURL,
 			&topic.RelatedCount,
+			&topic.ImportanceScore,
 		); err != nil {
 			return nil, fmt.Errorf("scan cached topic: %w", err)
 		}
@@ -278,6 +280,7 @@ func scanCachedArticle(row pgx.Row) (CachedArticle, error) {
 		&article.Article.SourceName,
 		&article.Article.SourceURL,
 		&article.Tags,
+		&article.ImportanceScore,
 	)
 	if err != nil {
 		return CachedArticle{}, err

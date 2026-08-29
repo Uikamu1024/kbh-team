@@ -17,6 +17,7 @@ import (
 	"backend/internal/ingest"
 	"backend/internal/pipeline"
 	"backend/internal/providers/fetcher"
+	"backend/internal/providers/llm"
 )
 
 const (
@@ -77,19 +78,20 @@ func run() error {
 	defer lock.Release()
 
 	articleFetcher := fetcher.NewJinaFetcher(&http.Client{Timeout: 30 * time.Second})
+	languageModel := llm.FromEnv(&http.Client{Timeout: 30 * time.Second})
 	if articleFetcher.MockMode() {
 		log.Printf("JINA_AI_API_KEY is not set; mock article bodies will not be cached")
 	}
 	rssClient := &http.Client{Timeout: 30 * time.Second}
 	for _, feed := range config.EnabledFeeds() {
-		stats := ingestFeed(context.Background(), database, rssClient, articleFetcher, feed)
+		stats := ingestFeed(context.Background(), database, rssClient, articleFetcher, languageModel, feed)
 		log.Printf("feed=%s rss=%d new=%d body_success=%d body_failed=%d", feed.ID, stats.rssItems, stats.newItems, stats.bodySucceeded, stats.bodyFailed)
 	}
 	log.Printf("completed in %s", time.Since(startedAt).Round(time.Millisecond))
 	return nil
 }
 
-func ingestFeed(ctx context.Context, database *db.DB, rssClient *http.Client, articleFetcher *fetcher.JinaFetcher, feed feedconfig.Feed) feedStats {
+func ingestFeed(ctx context.Context, database *db.DB, rssClient *http.Client, articleFetcher *fetcher.JinaFetcher, languageModel llm.LLM, feed feedconfig.Feed) feedStats {
 	stats := feedStats{}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, feed.URL, nil)
 	if err != nil {
@@ -172,14 +174,25 @@ func ingestFeed(ctx context.Context, database *db.DB, rssClient *http.Client, ar
 			continue
 		}
 		matchedGroupID := bestMatchingGroupID(article.Title, recentArticles)
+		importanceTopic, shouldScore := topicForPrimaryArticle(article, matchedGroupID, recentArticles)
+		importanceScore := 0
+		if shouldScore {
+			score, _, err := languageModel.ScoreTopic(ctx, importanceTopic, nil)
+			if err != nil {
+				log.Printf("feed=%s score article %q failed: %v", feed.ID, item.Link, err)
+				continue
+			}
+			importanceScore = score
+		}
 		articleID, err := db.NewUUID()
 		if err != nil {
 			log.Printf("feed=%s generate article ID for %q failed: %v", feed.ID, item.Link, err)
 			continue
 		}
 		if err := database.StoreIngestedArticle(ctx, db.CachedArticle{
-			ID:     articleID,
-			FeedID: feed.ID,
+			ID:              articleID,
+			FeedID:          feed.ID,
+			ImportanceScore: importanceScore,
 			Article: domain.Article{
 				Title:       article.Title,
 				Body:        article.Body,
@@ -193,6 +206,36 @@ func ingestFeed(ctx context.Context, database *db.DB, rssClient *http.Client, ar
 		}
 	}
 	return stats
+}
+
+// topicForPrimaryArticle reports whether article will become its group's
+// primary article when stored. Only primary articles need an importance score.
+func topicForPrimaryArticle(article domain.Article, matchedGroupID string, recentArticles []db.CachedArticle) (domain.Topic, bool) {
+	if matchedGroupID == "" {
+		return domain.Topic{Primary: article, RelatedCount: 1}, true
+	}
+
+	relatedCount := 1 // Include the article that is about to be stored.
+	primaryBody := ""
+	foundPrimary := false
+	for _, cached := range recentArticles {
+		if cached.TopicGroupID != matchedGroupID {
+			continue
+		}
+		relatedCount++
+		if cached.IsPrimary {
+			primaryBody = cached.Article.Body
+			foundPrimary = true
+		}
+	}
+	if !foundPrimary || utf8.RuneCountInString(article.Body) > utf8.RuneCountInString(primaryBody) {
+		return domain.Topic{
+			Primary:      article,
+			RelatedCount: relatedCount,
+			TopicGroupID: matchedGroupID,
+		}, true
+	}
+	return domain.Topic{}, false
 }
 
 func bestMatchingGroupID(title string, articles []db.CachedArticle) string {
