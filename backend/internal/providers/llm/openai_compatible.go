@@ -36,6 +36,14 @@ func NewOpenAICompatibleLLM(client *http.Client, baseURL, apiKey, model string) 
 	}
 }
 
+// maxMalformedJSONRetries bounds retries for chat completions whose content
+// fails to parse as the expected JSON shape. Reasoning models (e.g. Ollama
+// Cloud's gpt-oss:20b) sometimes spend their output budget on internal
+// reasoning and cut the visible JSON short; the failure is not consistent
+// across attempts, so a bounded retry recovers most of the time without
+// guessing at provider-specific token/reasoning-effort knobs.
+const maxMalformedJSONRetries = 2
+
 // ScoreTopic asks the configured Chat Completions endpoint to score a topic.
 // Without an API key, a deterministic local mock is used instead.
 func (o *OpenAICompatibleLLM) ScoreTopic(ctx context.Context, topic domain.Topic, previousTopics []string) (int, bool, error) {
@@ -51,11 +59,20 @@ func (o *OpenAICompatibleLLM) ScoreTopic(ctx context.Context, topic domain.Topic
 	if err != nil {
 		return 0, false, err
 	}
-	apiResponse, err := o.chatCompletions(ctx, requestBody)
-	if err != nil {
-		return 0, false, err
+
+	var lastErr error
+	for attempt := 1; attempt <= maxMalformedJSONRetries; attempt++ {
+		apiResponse, err := o.chatCompletions(ctx, requestBody)
+		if err != nil {
+			return 0, false, err
+		}
+		score, isNew, err := parseScoreResult(apiResponse, "OpenAI-compatible provider")
+		if err == nil {
+			return score, isNew, nil
+		}
+		lastErr = err
 	}
-	return parseScoreResult(apiResponse, "OpenAI-compatible provider")
+	return 0, false, lastErr
 }
 
 // GenerateScript asks the configured Chat Completions endpoint to generate a
@@ -75,11 +92,20 @@ func (o *OpenAICompatibleLLM) GenerateScript(ctx context.Context, selected []dom
 	if err != nil {
 		return "", nil, err
 	}
-	apiResponse, err := o.chatCompletions(ctx, requestBody)
-	if err != nil {
-		return "", nil, err
+
+	var lastErr error
+	for attempt := 1; attempt <= maxMalformedJSONRetries; attempt++ {
+		apiResponse, err := o.chatCompletions(ctx, requestBody)
+		if err != nil {
+			return "", nil, err
+		}
+		greetingText, chapters, err := parseScriptResult(apiResponse, selected, "OpenAI-compatible provider")
+		if err == nil {
+			return greetingText, chapters, nil
+		}
+		lastErr = err
 	}
-	return parseScriptResult(apiResponse, selected, "OpenAI-compatible provider")
+	return "", nil, lastErr
 }
 
 type openAIChatRequest struct {
