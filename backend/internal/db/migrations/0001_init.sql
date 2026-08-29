@@ -35,7 +35,7 @@ CREATE INDEX IF NOT EXISTS chapters_program_position_idx
 
 CREATE TABLE IF NOT EXISTS articles (
   id UUID PRIMARY KEY,
-  feed_id TEXT NOT NULL,              -- article.json上のフィードid（障害調査用のトレーサビリティ）
+  feed_id TEXT NOT NULL,              -- rss.json上のフィードid（障害調査用のトレーサビリティ）
   topic_group_id UUID NOT NULL,       -- 重複判定(LLMベース)で同一トピックとみなされた記事群のグループID（自分自身のidの場合もある）
   is_primary BOOLEAN NOT NULL,        -- グループ内で本文が最も充実している代表記事か
   title TEXT NOT NULL,                -- 元タイトル（重複判定・台本生成のソース情報として使う）

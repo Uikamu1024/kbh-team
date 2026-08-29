@@ -54,12 +54,16 @@ type SelectedTopic struct {
 // PresetTags is the fixed set of theme tags an article may be classified
 // into by the ingest job's LLM metadata extraction
 // (backend/docs/generation/01-feed-config.md: "フロントエンドの固定タグ一覧と
-// 1文字違わず一致する値に限定する"). PROVISIONAL: mirrors the four tags that
-// were previously hardcoded per-feed in config/article.json before the
-// 2026-08-29 tagging redesign, used as a stand-in until the frontend owner
-// confirms the authoritative onboarding preset list
-// (docs/api-contract.yaml's open item, "プリセットタグ一覧の管理場所").
-var PresetTags = []string{"AI", "テクノロジー", "ゲーム", "京都"}
+// 1文字違わず一致する値に限定する"). It is empty until SetPresetTags is called;
+// cmd/ingest loads the authoritative list from config/tags.json at startup
+// (backend/internal/tagsconfig) before running any metadata extraction.
+var PresetTags []string
+
+// SetPresetTags installs the preset tag list loaded from config/tags.json.
+// Call this once at startup, before any LLM metadata extraction runs.
+func SetPresetTags(tags []string) {
+	PresetTags = tags
+}
 
 // ArticleMetadata is the result of LLM structured-output metadata extraction
 // for one article (backend/docs/generation/02-ingestion.md step 5).

@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// Config is the top-level article.json document.
+// Config is the top-level rss.json document.
 type Config struct {
 	Feeds []Feed `json:"feeds"`
 }
@@ -25,7 +25,7 @@ type Feed struct {
 	Enabled bool   `json:"enabled"`
 }
 
-// Load reads and validates an article.json feed configuration.
+// Load reads and validates an rss.json feed configuration.
 func Load(path string) (Config, error) {
 	contents, err := os.ReadFile(path)
 	if err != nil {

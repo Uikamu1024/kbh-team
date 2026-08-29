@@ -18,11 +18,13 @@ import (
 	"backend/internal/ingest"
 	"backend/internal/providers/fetcher"
 	"backend/internal/providers/llm"
+	"backend/internal/tagsconfig"
 	"backend/internal/trace"
 )
 
 const (
-	feedConfigPath   = "config/article.json"
+	feedConfigPath   = "../config/rss.json"
+	tagsConfigPath   = "../config/tags.json"
 	maxItemsPerFeed  = 20
 	freshnessWindow  = 14 * 24 * time.Hour
 	minimumBodyRunes = 100
@@ -72,6 +74,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	tags, err := tagsconfig.Load(tagsConfigPath)
+	if err != nil {
+		return err
+	}
+	domain.SetPresetTags(tags)
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if databaseURL == "" {
 		return fmt.Errorf("DATABASE_URL is not set")

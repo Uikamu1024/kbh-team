@@ -91,7 +91,7 @@ func (f *JinaFetcher) FetchArticles(ctx context.Context, tags []string) ([]domai
 
 // FetchArticle retrieves and normalizes the body for one article URL through
 // jina.ai Reader, for callers that already have their own URL (cmd/ingest,
-// which reads URLs from the RSS feeds listed in config/article.json rather
+// which reads URLs from the RSS feeds listed in config/rss.json rather
 // than tagFeeds — see backend/docs/generation/02-ingestion.md). Unlike
 // fetchArticle (used internally by FetchArticles' tag-based cmd/demo path),
 // this respects MockMode so cmd/ingest can be run against a local database
