@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -30,8 +31,11 @@ func NewFirecrawlFetcher(client *http.Client) *FirecrawlFetcher {
 	return &FirecrawlFetcher{client: client}
 }
 
-// FetchArticles fetches the whitelisted articles for each requested tag.
-// When FIRECRAWL_API_KEY is unset, it returns deterministic local mock articles.
+// FetchArticles discovers real article URLs for each requested tag via its
+// mapped RSS feed (tagFeeds, shared with JinaFetcher), then fetches each one
+// through the Firecrawl scrape API. When FIRECRAWL_API_KEY is unset, it
+// returns deterministic local mock articles (unlike jina.ai Reader, Firecrawl
+// has no documented unauthenticated tier to fall back to).
 func (f *FirecrawlFetcher) FetchArticles(ctx context.Context, tags []string) ([]domain.Article, error) {
 	if strings.TrimSpace(os.Getenv("FIRECRAWL_API_KEY")) == "" {
 		return mockArticles(tags, "firecrawl"), nil
@@ -39,10 +43,16 @@ func (f *FirecrawlFetcher) FetchArticles(ctx context.Context, tags []string) ([]
 
 	articles := make([]domain.Article, 0)
 	for _, tag := range tags {
-		for _, sourceURL := range limitedURLs(whitelistURLs(tag)) {
+		sourceURLs, err := fetchFeedURLs(ctx, f.client, feedURLForTag(tag), maxArticlesPerTag)
+		if err != nil {
+			return nil, fmt.Errorf("fetch RSS feed for tag %q: %w", tag, err)
+		}
+
+		for _, sourceURL := range sourceURLs {
 			article, err := f.fetchArticle(ctx, sourceURL)
 			if err != nil {
-				return nil, fmt.Errorf("fetch article %q for tag %q: %w", sourceURL, tag, err)
+				log.Printf("fetcher: skipping article %q for tag %q: %v", sourceURL, tag, err)
+				continue
 			}
 			articles = append(articles, article)
 		}
