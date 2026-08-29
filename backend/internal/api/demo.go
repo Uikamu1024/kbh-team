@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -39,22 +40,26 @@ func (s *Server) generateDemo(w http.ResponseWriter, r *http.Request) {
 
 	articles, err := pipeline.FetchArticles(ctx, s.articleFetcher, request.Tags)
 	if err != nil {
+		log.Printf("api: demo generate: fetch articles: %v", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_FETCH_FAILED", "記事の取得に失敗しました")
 		return
 	}
 	topics := pipeline.DedupeArticles(articles)
 	selected, changeCount, err := pipeline.ScoreAndSelect(ctx, s.languageModel, topics, 10, nil)
 	if err != nil {
+		log.Printf("api: demo generate: score topics: %v", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_LLM_FAILED", "台本生成に失敗しました")
 		return
 	}
 	greetingText, drafts, err := pipeline.GenerateScript(ctx, s.languageModel, selected)
 	if err != nil {
+		log.Printf("api: demo generate: generate script: %v", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_LLM_FAILED", "台本生成に失敗しました")
 		return
 	}
 	chapters, err := pipeline.SynthesizeChapters(ctx, s.speechSynthesizer, greetingText, drafts)
 	if err != nil {
+		log.Printf("api: demo generate: synthesize chapters: %v", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_TTS_FAILED", "音声生成に失敗しました")
 		return
 	}

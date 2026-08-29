@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -57,22 +58,26 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 	}
 	articles, err := pipeline.FetchArticles(ctx, s.articleFetcher, user.Tags)
 	if err != nil {
+		log.Printf("api: regenerate: fetch articles: %v", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_FETCH_FAILED", "記事の取得に失敗しました")
 		return
 	}
 	topics := pipeline.DedupeArticles(articles)
 	selected, changeCount, err := pipeline.ScoreAndSelect(ctx, s.languageModel, topics, user.LengthMinutes, previousTopics)
 	if err != nil {
+		log.Printf("api: regenerate: score topics: %v", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_LLM_FAILED", "台本生成に失敗しました")
 		return
 	}
 	greetingText, drafts, err := pipeline.GenerateScript(ctx, s.languageModel, selected)
 	if err != nil {
+		log.Printf("api: regenerate: generate script: %v", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_LLM_FAILED", "台本生成に失敗しました")
 		return
 	}
 	chapters, err := pipeline.SynthesizeChapters(ctx, s.speechSynthesizer, greetingText, drafts)
 	if err != nil {
+		log.Printf("api: regenerate: synthesize chapters: %v", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_TTS_FAILED", "音声生成に失敗しました")
 		return
 	}

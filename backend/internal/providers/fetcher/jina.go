@@ -19,9 +19,12 @@ const jinaReaderURL = "https://r.jina.ai/"
 
 // maxArticlesPerTag caps how many articles are fetched per tag per
 // generation. jina.ai Reader allows unauthenticated requests at a lower rate
-// limit (see https://jina.ai/reader/); keeping this modest avoids hitting
-// that limit when a user selects up to 3 tags in one run.
-const maxArticlesPerTag = 5
+// limit (see https://jina.ai/reader/), and each article also costs one LLM
+// scoring call downstream; keeping this modest avoids hitting rate limits
+// and keeps total generation time reasonable when a user selects up to 3
+// tags in one run (3 tags x 5 articles was measured to occasionally exceed
+// a minute and trip free-tier LLM rate limits mid-run).
+const maxArticlesPerTag = 3
 
 // tagFeeds maps preset tags (see frontend/src/lib/presetTags.ts) to a public
 // RSS feed to source real articles from, replacing the previous placeholder

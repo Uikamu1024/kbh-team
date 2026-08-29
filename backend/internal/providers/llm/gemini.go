@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"backend/internal/domain"
 )
@@ -129,7 +130,31 @@ func buildScriptRequest(selected []domain.ScoredTopic) ([]byte, error) {
 	return json.Marshal(request)
 }
 
+// generateContent retries transient failures (429/5xx) like
+// OpenAICompatibleLLM.chatCompletions does, for the same reason: a script
+// generation run makes one call per fetched article, so a single transient
+// rate limit shouldn't abort the whole batch.
 func (g *GeminiLLM) generateContent(ctx context.Context, requestBody []byte) (string, error) {
+	var lastErr error
+	for attempt := 1; attempt <= maxChatCompletionAttempts; attempt++ {
+		content, retryAfter, err := g.generateContentOnce(ctx, requestBody)
+		if err == nil {
+			return content, nil
+		}
+		lastErr = err
+		if retryAfter <= 0 || attempt == maxChatCompletionAttempts {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(retryAfter):
+		}
+	}
+	return "", lastErr
+}
+
+func (g *GeminiLLM) generateContentOnce(ctx context.Context, requestBody []byte) (string, time.Duration, error) {
 	apiKey := strings.TrimSpace(os.Getenv("LLM_API_KEY"))
 	model := strings.TrimSpace(os.Getenv("GEMINI_MODEL"))
 	if model == "" {
@@ -138,7 +163,7 @@ func (g *GeminiLLM) generateContent(ctx context.Context, requestBody []byte) (st
 	endpoint := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", url.PathEscape(model))
 	parsedEndpoint, err := url.Parse(endpoint)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	query := parsedEndpoint.Query()
 	query.Set("key", apiKey)
@@ -146,7 +171,7 @@ func (g *GeminiLLM) generateContent(ctx context.Context, requestBody []byte) (st
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, parsedEndpoint.String(), bytes.NewReader(requestBody))
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	request.Header.Set("Content-Type", "application/json")
 
@@ -156,29 +181,33 @@ func (g *GeminiLLM) generateContent(ctx context.Context, requestBody []byte) (st
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	defer response.Body.Close()
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return "", err
+		return "", 0, err
+	}
+	if response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= http.StatusInternalServerError {
+		wait := retryAfterDuration(response.Header.Get("Retry-After"))
+		return "", wait, fmt.Errorf("Gemini returned status %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return "", fmt.Errorf("Gemini returned status %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
+		return "", 0, fmt.Errorf("Gemini returned status %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var result generateContentResponse
 	if err := json.Unmarshal(body, &result); err != nil {
-		return "", fmt.Errorf("decode Gemini response: %w", err)
+		return "", 0, fmt.Errorf("decode Gemini response: %w", err)
 	}
 	if result.Error != nil {
-		return "", fmt.Errorf("Gemini API error: %s", result.Error.Message)
+		return "", 0, fmt.Errorf("Gemini API error: %s", result.Error.Message)
 	}
 	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
-		return "", errors.New("Gemini response did not contain a candidate")
+		return "", 0, errors.New("Gemini response did not contain a candidate")
 	}
-	return result.Candidates[0].Content.Parts[0].Text, nil
+	return result.Candidates[0].Content.Parts[0].Text, 0, nil
 }
 
 var _ LLM = (*GeminiLLM)(nil)
