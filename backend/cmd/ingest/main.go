@@ -138,13 +138,16 @@ func ingestFeed(ctx context.Context, database *db.DB, rssClient *http.Client, ar
 		}
 
 		stats.newItems++
+		log.Printf("feed=%s fetching body %d/%d: %s", feed.ID, stats.newItems, len(items), item.Link)
+		fetchStartedAt := time.Now()
 		fetched, err := articleFetcher.FetchArticle(ctx, item.Link)
 		if err != nil {
 			stats.bodyFailed++
-			log.Printf("feed=%s fetch body for %q failed: %v", feed.ID, item.Link, err)
+			log.Printf("feed=%s fetch body for %q failed after %s: %v", feed.ID, item.Link, time.Since(fetchStartedAt).Round(time.Millisecond), err)
 			continue
 		}
 		stats.bodySucceeded++
+		log.Printf("feed=%s fetched body %d/%d in %s: %s", feed.ID, stats.newItems, len(items), time.Since(fetchStartedAt).Round(time.Millisecond), item.Link)
 		if articleFetcher.MockMode() {
 			continue
 		}
