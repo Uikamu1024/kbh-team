@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,19 @@ import (
 var speakerIDs = map[string]int{
 	"A": 3,
 	"B": 8,
+}
+
+// voiceSettings can be tuned independently for each speaker.
+// speedScale: 1.0 is the default, values above 1.0 are faster.
+// intonationScale: 1.0 is the default, values above 1.0 add emphasis.
+var voiceSettings = map[string]struct {
+	SpeedScale      float64
+	PitchScale      float64
+	IntonationScale float64
+	VolumeScale     float64
+}{
+	"A": {SpeedScale: 1.04, PitchScale: 0.0, IntonationScale: 1.08, VolumeScale: 1.0},
+	"B": {SpeedScale: 0.97, PitchScale: 0.0, IntonationScale: 1.08, VolumeScale: 1.0},
 }
 
 // VoicevoxTTS synthesizes speech through the local VOICEVOX ENGINE API.
@@ -69,6 +83,10 @@ func (v *VoicevoxTTS) Synthesize(ctx context.Context, speaker string, text strin
 	if err != nil {
 		return engineFallback(ctx, err)
 	}
+	queryBody, err = tuneVoiceQuery(queryBody, speaker)
+	if err != nil {
+		return engineFallback(ctx, err)
+	}
 
 	synthesisURL := baseURL + "/synthesis?" + url.Values{
 		"speaker": []string{strconv.Itoa(speakerID)},
@@ -91,6 +109,23 @@ func (v *VoicevoxTTS) Synthesize(ctx context.Context, speaker string, text strin
 		return engineFallback(ctx, errors.New("VOICEVOX synthesis response is not a WAV"))
 	}
 	return audio, nil
+}
+
+func tuneVoiceQuery(queryBody []byte, speaker string) ([]byte, error) {
+	settings, ok := voiceSettings[speaker]
+	if !ok {
+		return queryBody, nil
+	}
+
+	var query map[string]any
+	if err := json.Unmarshal(queryBody, &query); err != nil {
+		return nil, fmt.Errorf("decode VOICEVOX audio query: %w", err)
+	}
+	query["speedScale"] = settings.SpeedScale
+	query["pitchScale"] = settings.PitchScale
+	query["intonationScale"] = settings.IntonationScale
+	query["volumeScale"] = settings.VolumeScale
+	return json.Marshal(query)
 }
 
 func (v *VoicevoxTTS) httpClient() *http.Client {
