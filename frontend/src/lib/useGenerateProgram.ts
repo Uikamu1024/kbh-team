@@ -6,6 +6,13 @@ import type { Program } from "./types";
 const POLL_INTERVAL_MS = 5000;
 const MAX_POLLS = 24; // 5秒間隔で最大2分待つ
 
+// DEMO_MODEのregenerateはDBから既存番組をランダムに引いて返すだけなので一瞬で
+// 終わる。Onboardingの「生成中…」演出（GENERATING_STATUS_MESSAGES、最後の切り替え
+// が1800ms時点）が一瞬でスキップされてしまわないよう、regenerateモードには最低
+// この時間だけ「生成中」状態を維持する下駄を履かせる（実際の生成が遅い本番運用時は
+// 素通りになるだけで実害はない）。
+const MIN_REGENERATE_DISPLAY_MS = 2800;
+
 export type GenerateMode = "batch" | "regenerate";
 
 // 開発・デモ用の手動生成ロジック。デフォルト（mode: "batch"）はPOST /api/batch/run
@@ -37,8 +44,13 @@ export function useGenerateProgram() {
     setError(null);
 
     if (mode === "regenerate") {
+      const startedAt = Date.now();
       try {
         const program = await regenerateLatestProgram(userId, { bypassResetLimit: true });
+        const elapsedMs = Date.now() - startedAt;
+        if (elapsedMs < MIN_REGENERATE_DISPLAY_MS) {
+          await new Promise((resolve) => setTimeout(resolve, MIN_REGENERATE_DISPLAY_MS - elapsedMs));
+        }
         if (!cancelledRef.current) {
           setGenerating(false);
           onReady(program);
