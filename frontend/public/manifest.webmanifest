@@ -1,6 +1,6 @@
 {
-  "name": "通学ラジオ",
-  "short_name": "通学ラジオ",
+  "name": "Daybrief",
+  "short_name": "Daybrief",
   "description": "通学中に聞ける、テーマ登録型のパーソナルAIラジオ",
   "start_url": "/",
   "display": "standalone",
