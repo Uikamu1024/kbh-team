@@ -61,3 +61,16 @@ CREATE TABLE IF NOT EXISTS user_seen_topics (
   seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, topic_group_id)
 );
+
+-- DEMO_MODE=1のときだけ使う。実生成の代わりに既存のprograms行をユーザーへ
+-- ランダムに割り当てる（重い生成処理を無効化するデモ用の仕組み）。
+-- programs/chaptersなど本番の音声管理テーブルは一切変更しない。
+CREATE TABLE IF NOT EXISTS demo_program_assignments (
+  user_id UUID NOT NULL REFERENCES users(id),
+  program_id UUID NOT NULL REFERENCES programs(id),
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, program_id)
+);
+
+CREATE INDEX IF NOT EXISTS demo_program_assignments_user_assigned_at_idx
+  ON demo_program_assignments (user_id, assigned_at DESC);

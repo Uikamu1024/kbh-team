@@ -26,7 +26,16 @@ import (
 // too) doesn't eat into the user's 3/day reset budget before they've had a
 // chance to use it. The in-memory lock is intentionally process-local,
 // matching the single backend process deployment assumed by this project.
+//
+// When DEMO_MODE is on, the whole pipeline (select → LLM → TTS) is skipped
+// entirely in favor of regenerateLatestProgramDemo, which hands out an
+// already-existing program at random instead.
 func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request) {
+	if s.demoMode {
+		s.regenerateLatestProgramDemo(w, r)
+		return
+	}
+
 	userID := r.PathValue("userId")
 	user, err := s.database.GetUser(r.Context(), userID)
 	if err != nil {
@@ -127,6 +136,42 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 	}
 	debuglog.Printf("api: regenerate: user %s: done in %s", userID, time.Since(requestStartedAt).Round(time.Millisecond))
 	writeJSON(w, http.StatusCreated, makeProgramResponse(program, storedChapters))
+}
+
+// regenerateLatestProgramDemo is DEMO_MODE's stand-in for real generation
+// (used by both the onboarding first-ever call and the profile "reset"
+// button, since both go through regenerateLatestProgram). It never runs the
+// select/LLM/TTS pipeline and never writes to programs/chapters: it picks an
+// already-existing program at random — one this user hasn't been handed
+// before — and records that assignment in demo_program_assignments
+// (backend/internal/db/demo.go). Once every existing program has already
+// been assigned to this user, it reuses the real reset path's 429
+// RESET_LIMIT_EXCEEDED response, since from the caller's point of view the
+// effect is the same ("nothing new right now").
+func (s *Server) regenerateLatestProgramDemo(w http.ResponseWriter, r *http.Request) {
+	userID := r.PathValue("userId")
+
+	if !s.startGenerating(userID) {
+		writeError(w, http.StatusConflict, "ALREADY_GENERATING", "前回のリクエストを処理中です。しばらく待ってから再度お試しください")
+		return
+	}
+	defer s.finishGenerating(userID)
+
+	programID, assignedAt, err := s.database.AssignRandomDemoProgram(r.Context(), userID)
+	if err != nil {
+		s.writeResetError(w, err)
+		return
+	}
+
+	program, chapters, err := s.database.GetProgramByID(r.Context(), programID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "割り当てた番組を取得できません")
+		return
+	}
+	// Displayed as "just generated" for this user, not whenever the
+	// underlying program was actually first created in the DB.
+	program.CreatedAt = assignedAt
+	writeJSON(w, http.StatusCreated, makeProgramResponse(program, chapters))
 }
 
 func (s *Server) startGenerating(userID string) bool {

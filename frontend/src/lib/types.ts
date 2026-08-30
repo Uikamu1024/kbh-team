@@ -13,6 +13,7 @@ export type ApiErrorCode =
   | "UPSTREAM_FETCH_FAILED"
   | "UPSTREAM_LLM_FAILED"
   | "UPSTREAM_TTS_FAILED"
+  | "DEMO_MODE_DISABLED"
   | "INTERNAL_ERROR";
 
 export interface ApiErrorBody {

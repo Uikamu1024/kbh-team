@@ -25,6 +25,7 @@ type Server struct {
 	generatingUsers   map[string]struct{}
 	voicevoxURL       string
 	httpClient        *http.Client
+	demoMode          bool
 }
 
 // New creates an API server backed by the supplied database and storage.
@@ -42,7 +43,16 @@ func New(database *db.DB, fileStorage *storage.Storage) *Server {
 		generatingUsers:   make(map[string]struct{}),
 		voicevoxURL:       voicevoxURL,
 		httpClient:        &http.Client{Timeout: 3 * time.Second},
+		demoMode:          isTruthyEnv(os.Getenv("DEMO_MODE")),
 	}
+}
+
+// isTruthyEnv reports whether a boolean-flag environment variable is set to
+// anything other than "", "0", or "false" (mirrors internal/debuglog's
+// convention for the same kind of on/off env var).
+func isTruthyEnv(value string) bool {
+	value = strings.TrimSpace(value)
+	return value != "" && value != "0" && !strings.EqualFold(value, "false")
 }
 
 // Handler returns the complete HTTP handler for the implemented API routes.

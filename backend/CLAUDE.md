@@ -86,6 +86,7 @@ Phase 1〜3が通るまでPhase 5の機能（設定・履歴・作り直し）�
 | `JINA_AI_API_KEY` | jina.ai Reader APIキー |
 | `FIRECRAWL_API_KEY` | firecrawl APIキー（代替プロバイダ用） |
 | `VOICEVOX_ENGINE_URL` | ローカルVOICEVOX ENGINEのURL（`docker-compose.yml`参照） |
+| `DEMO_MODE` | 設定すると`POST /api/batch/run`・`POST /api/demo/generate`を無効化し、`POST /api/users/{userId}/programs/latest/regenerate`と`GET .../programs/latest`・`GET .../programs`は実生成の代わりに既存の`programs`行をユーザーへランダムに割り当てる（`demo_program_assignments`テーブル、`internal/db/demo.go`）。重い生成処理を避けたいデモ実演用 |
 
 ## APIコントラクト
 フロントエンドが呼ぶエンドポイントの仕様は[docs/api-contract.yaml](../docs/api-contract.yaml)に合意事項としてまとめている。**実装より先にこのファイルを更新して合意すること。** 各エンドポイントの実装方針（委譲先・バッチ/リセットのロジック）は[docs/api-handlers.md](docs/api-handlers.md)を参照。

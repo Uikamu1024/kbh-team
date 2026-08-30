@@ -38,6 +38,20 @@ info:
     フロントエンドの `localStorage` にのみ保存するクライアントローカルな値として扱う
     （どのAPIレスポンスにも `name` 相当のフィールドは含まれない）。
 
+    ## DEMO_MODE（発表・デモ実演用）
+    バックエンドの環境変数 `DEMO_MODE` を設定すると、記事取得→LLM→TTSの重い生成処理を一切実行しない
+    デモ用の挙動に切り替わる（実装は`backend/internal/db/demo.go`・各ハンドラの`s.demoMode`分岐）。
+
+    - `POST /api/batch/run`・`POST /api/demo/generate` は完全に無効化し、`503`（`DEMO_MODE_DISABLED`）を返す
+    - `POST /api/users/{userId}/programs/latest/regenerate` は実生成の代わりに、
+      既に`programs`テーブルにある番組の中から**そのユーザーにまだ割り当てていないもの**を1件ランダムに選び、
+      新しく割り当てて返す（`demo_program_assignments`テーブルで管理。本番の`programs`/`chapters`は一切変更しない）。
+      同じユーザーが繰り返し呼ぶと毎回別の番組がランダムに返るが、**そのユーザーへの割り当て候補（未使用の既存番組）が尽きると**
+      `429`（`RESET_LIMIT_EXCEEDED`、通常の1日3回制限と同じレスポンス形式を流用）を返す
+    - `GET /api/users/{userId}/programs/latest`・`GET /api/users/{userId}/programs` は
+      `programs.user_id`ではなく`demo_program_assignments`を参照し、このユーザーに割り当て済みの番組を返す
+      （`createdAt`は番組の実際の生成日時ではなく、そのユーザーへの割り当て日時になる）
+
 servers:
   - url: http://localhost:8080
     description: ローカル開発環境（VITE_API_BASE_URL、詳細は frontend/CLAUDE.md#環境変数）
@@ -871,6 +885,7 @@ components:
                 - NO_UNSEEN_ARTICLES
                 - UPSTREAM_LLM_FAILED
                 - UPSTREAM_TTS_FAILED
+                - DEMO_MODE_DISABLED
                 - INTERNAL_ERROR
             message:
               type: string

@@ -43,7 +43,24 @@ type programSummaryResponse struct {
 }
 
 func (s *Server) getLatestProgram(w http.ResponseWriter, r *http.Request) {
-	program, chapters, err := s.database.GetLatestProgramByUser(r.Context(), r.PathValue("userId"))
+	userID := r.PathValue("userId")
+	if s.demoMode {
+		programID, assignedAt, err := s.database.GetLatestDemoProgramForUser(r.Context(), userID)
+		if err != nil {
+			s.writeProgramError(w, err)
+			return
+		}
+		program, chapters, err := s.database.GetProgramByID(r.Context(), programID)
+		if err != nil {
+			s.writeProgramError(w, err)
+			return
+		}
+		program.CreatedAt = assignedAt
+		writeJSON(w, http.StatusOK, makeProgramResponse(program, chapters))
+		return
+	}
+
+	program, chapters, err := s.database.GetLatestProgramByUser(r.Context(), userID)
 	if err != nil {
 		s.writeProgramError(w, err)
 		return
@@ -61,7 +78,12 @@ func (s *Server) listPrograms(w http.ResponseWriter, r *http.Request) {
 	if limit > 50 {
 		limit = 50
 	}
-	summaries, total, err := s.database.ListProgramsByUser(r.Context(), r.PathValue("userId"), limit)
+	userID := r.PathValue("userId")
+	listFunc := s.database.ListProgramsByUser
+	if s.demoMode {
+		listFunc = s.database.ListDemoProgramsForUser
+	}
+	summaries, total, err := listFunc(r.Context(), userID, limit)
 	if err != nil {
 		if errors.Is(err, db.ErrUserNotFound) {
 			writeError(w, http.StatusNotFound, "USER_NOT_FOUND", "指定されたユーザーが見つかりません")
