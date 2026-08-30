@@ -72,7 +72,7 @@ export default function Home() {
 
   function handleGenerateNow() {
     const key = `${userId}:${attempt}`;
-    generate((program) => setResult({ key, state: { status: "ready", program } }));
+    generate((program) => setResult({ key, state: { status: "ready", program } }), "regenerate");
   }
 
   // 今日の番組がすでに再生中ならその場でトグル、そうでなければ読み込んで
