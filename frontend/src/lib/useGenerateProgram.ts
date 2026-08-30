@@ -1,15 +1,23 @@
 import { useEffect, useRef, useState } from "react";
-import { getLatestProgram, runBatch } from "./api";
+import { getLatestProgram, regenerateLatestProgram, runBatch } from "./api";
 import { useUserId } from "./useUserId";
 import type { Program } from "./types";
 
 const POLL_INTERVAL_MS = 5000;
 const MAX_POLLS = 24; // 5秒間隔で最大2分待つ
 
-// 開発・デモ用の手動生成ロジック。POST /api/batch/runは全ユーザー分をまとめて
-// 生成する非同期エンドポイントのため、起動後にgetLatestProgramをポーリングして
-// 自分の分の完了を待つ。Home（準備中の手動生成ボタン）とOnboarding（初回登録後の
-// 生成中画面）の両方から使うため共通化している。
+export type GenerateMode = "batch" | "regenerate";
+
+// 開発・デモ用の手動生成ロジック。デフォルト（mode: "batch"）はPOST /api/batch/run
+// を使う。全ユーザー分をまとめて生成する非同期エンドポイントのため、起動後に
+// getLatestProgramをポーリングして自分の分の完了を待つ。Home（準備中の手動生成
+// ボタン）から使う。
+//
+// mode: "regenerate" はOnboarding（初回登録直後の生成）専用。batch/runは配信時刻
+// を過ぎていて今日の分が未生成の他ユーザーまで巻き込んで生成してしまうため、
+// 自分のuserIdだけを対象にするPOST .../regenerateを使う。regenerateは同期的に
+// 完成した番組を返すのでポーリングは不要。resetCountを消費しないよう
+// bypassResetLimit付きで呼ぶ（初回生成が3回/日の作り直し枠を食いつぶさないため）。
 export function useGenerateProgram() {
   const { userId } = useUserId();
   const [generating, setGenerating] = useState(false);
@@ -23,10 +31,26 @@ export function useGenerateProgram() {
     };
   }, []);
 
-  async function generate(onReady: (program: Program) => void) {
+  async function generate(onReady: (program: Program) => void, mode: GenerateMode = "batch") {
     if (!userId || generating) return;
     setGenerating(true);
     setError(null);
+
+    if (mode === "regenerate") {
+      try {
+        const program = await regenerateLatestProgram(userId, { bypassResetLimit: true });
+        if (!cancelledRef.current) {
+          setGenerating(false);
+          onReady(program);
+        }
+      } catch {
+        if (!cancelledRef.current) {
+          setGenerating(false);
+          setError("生成に失敗しました。もう一度お試しください。");
+        }
+      }
+      return;
+    }
 
     try {
       await runBatch();

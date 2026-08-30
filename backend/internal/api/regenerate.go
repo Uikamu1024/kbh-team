@@ -18,9 +18,14 @@ import (
 // POST /api/users/{userId}/programs used to (that endpoint was removed as a
 // duplicate once this one stopped replacing). The daily reset-count limit
 // (IncrementResetCount, 3/day) is the only thing that still makes this
-// distinct from an ordinary "generate one more program" call. The in-memory
-// lock is intentionally process-local, matching the single backend process
-// deployment assumed by this project.
+// distinct from an ordinary "generate one more program" call — unless the
+// ?bypass query parameter is present, in which case the limit check/counter
+// update is skipped entirely. This exists so the onboarding flow's
+// first-ever generation (which now calls this endpoint instead of
+// POST /api/batch/run, to avoid sweeping every other user's overdue program
+// too) doesn't eat into the user's 3/day reset budget before they've had a
+// chance to use it. The in-memory lock is intentionally process-local,
+// matching the single backend process deployment assumed by this project.
 func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("userId")
 	user, err := s.database.GetUser(r.Context(), userID)
@@ -70,14 +75,16 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 	}
 	debuglog.Printf("api: regenerate: user %s: selected %d chapters in %s", userID, len(selected), time.Since(stageStartedAt).Round(time.Millisecond))
 
-	today, err := deliveryDate(time.Now(), user.DeliveryTime)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "配信日の計算に失敗しました")
-		return
-	}
-	if _, err := s.database.IncrementResetCount(r.Context(), userID, today); err != nil {
-		s.writeResetError(w, err)
-		return
+	if !r.URL.Query().Has("bypass") {
+		today, err := deliveryDate(time.Now(), user.DeliveryTime)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "配信日の計算に失敗しました")
+			return
+		}
+		if _, err := s.database.IncrementResetCount(r.Context(), userID, today); err != nil {
+			s.writeResetError(w, err)
+			return
+		}
 	}
 
 	stageStartedAt = time.Now()

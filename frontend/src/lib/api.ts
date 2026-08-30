@@ -116,9 +116,13 @@ export function listPrograms(
   );
 }
 
-export function regenerateLatestProgram(userId: string): Promise<Program> {
+export function regenerateLatestProgram(
+  userId: string,
+  options?: { bypassResetLimit?: boolean },
+): Promise<Program> {
+  const query = options?.bypassResetLimit ? "?bypass=1" : "";
   return apiFetch<Program>(
-    `/api/users/${userId}/programs/latest/regenerate`,
+    `/api/users/${userId}/programs/latest/regenerate${query}`,
     { method: "POST" },
     LONG_RUNNING_TIMEOUT_MS,
   );

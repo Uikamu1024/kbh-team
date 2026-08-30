@@ -55,7 +55,7 @@ export default function Onboarding() {
       setTimeout(() => setStatusIndex(1), 900),
       setTimeout(() => setStatusIndex(2), 1800),
     ];
-    generate(() => navigate("/home", { replace: true }));
+    generate(() => navigate("/home", { replace: true }), "regenerate");
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
