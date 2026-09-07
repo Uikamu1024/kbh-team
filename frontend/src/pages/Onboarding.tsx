@@ -39,13 +39,15 @@ export default function Onboarding() {
   }
 
   // 生成中画面: 見た目上の進捗ステータス（statusIndex）は、裏で実行する本物の
-  // 生成（regenerateLatestProgram、その場で記事取得〜音声化まで行う同期API）を
-  // useGenerateProgramがポーリングして取得した実際の進行段階と連動する。
-  // 完了/失敗どちらでも一旦ホームへ進める（失敗時はホーム側の「今すぐ生成する」
-  // ボタンで再試行できる）。
+  // 生成（regenerateLatestProgram。通常はバックグラウンドで進む非同期API、
+  // DEMO_MODE時のみ同期的に即完了する）をuseGenerateProgramがポーリングして
+  // 取得した実際の進行段階と連動する。完了/失敗どちらでも一旦ホームへ進める
+  // （失敗時はホーム側の「今すぐ生成する」ボタンで再試行できる）。
   useEffect(() => {
     if (step !== "generating") return;
-    generate(() => navigate("/home", { replace: true }));
+    // その日の最初の1本は「作り直し」ではないため、1日3回までのリセット上限に
+    // カウントしない（useGenerateProgram参照）。
+    generate(() => navigate("/home", { replace: true }), { bypassResetLimit: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 

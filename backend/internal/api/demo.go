@@ -18,7 +18,16 @@ type demoGenerateRequest struct {
 // generateDemo executes the non-persistent demo pipeline. UUIDs are used for
 // the temporary files as well, because Storage deliberately accepts UUID paths
 // only; the files can be cleaned up independently of the database.
+//
+// Disabled entirely under DEMO_MODE: it isn't called by the frontend UI (it
+// exists for standalone live-demo/manual testing), and DEMO_MODE means the
+// heavy select/LLM/TTS pipeline should never run.
 func (s *Server) generateDemo(w http.ResponseWriter, r *http.Request) {
+	if s.demoMode {
+		writeError(w, http.StatusServiceUnavailable, "DEMO_MODE_DISABLED", "DEMO_MODEが有効なため、この生成エンドポイントは無効化されています")
+		return
+	}
+
 	var request demoGenerateRequest
 	if !decodeJSON(w, r, &request, "INVALID_TAGS", "リクエストJSONの形式が不正です") {
 		return

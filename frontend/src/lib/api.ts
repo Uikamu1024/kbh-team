@@ -114,13 +114,22 @@ export function listPrograms(
   );
 }
 
-// 202 Acceptedを即座に返す非同期API。実際の生成はバックグラウンドで進み、
-// 進行状況・完了・失敗はgetGenerationStatusをポーリングして確認する
-// （useGenerateProgram参照）。
-export function regenerateLatestProgram(userId: string): Promise<RegenerateAcceptedResponse> {
-  return apiFetch<RegenerateAcceptedResponse>(`/api/users/${userId}/programs/latest/regenerate`, {
-    method: "POST",
-  });
+// DEMO_MODE時はDBから既存番組をランダムに割り当てて201 + Programを同期的に
+// 返すが、通常運用時は202 + RegenerateAcceptedResponseを即座に返し、実際の
+// パイプライン（記事取得〜台本生成〜音声合成〜保存）はサーバー側のバックグラウンド
+// で進む——このリクエストを送ったブラウザのタブを閉じたりページをリロードしたり
+// しても、生成処理自体は止まらない。進行状況・完了・失敗はgetGenerationStatusを
+// ポーリングして確認する（どちらのレスポンスが返るかは呼び出し側では判別できない
+// ため、返り値の形で判別する。useGenerateProgram参照）。
+export function regenerateLatestProgram(
+  userId: string,
+  options?: { bypassResetLimit?: boolean },
+): Promise<RegenerateAcceptedResponse | Program> {
+  const query = options?.bypassResetLimit ? "?bypass=1" : "";
+  return apiFetch<RegenerateAcceptedResponse | Program>(
+    `/api/users/${userId}/programs/latest/regenerate${query}`,
+    { method: "POST" },
+  );
 }
 
 export function getGenerationStatus(userId: string): Promise<GenerationStatusResponse> {

@@ -38,6 +38,20 @@ info:
     フロントエンドの `localStorage` にのみ保存するクライアントローカルな値として扱う
     （どのAPIレスポンスにも `name` 相当のフィールドは含まれない）。
 
+    ## DEMO_MODE（発表・デモ実演用）
+    バックエンドの環境変数 `DEMO_MODE` を設定すると、記事取得→LLM→TTSの重い生成処理を一切実行しない
+    デモ用の挙動に切り替わる（実装は`backend/internal/db/demo.go`・各ハンドラの`s.demoMode`分岐）。
+
+    - `POST /api/batch/run`・`POST /api/demo/generate` は完全に無効化し、`503`（`DEMO_MODE_DISABLED`）を返す
+    - `POST /api/users/{userId}/programs/latest/regenerate` は実生成の代わりに、
+      既に`programs`テーブルにある番組の中から**そのユーザーにまだ割り当てていないもの**を1件ランダムに選び、
+      新しく割り当てて返す（`demo_program_assignments`テーブルで管理。本番の`programs`/`chapters`は一切変更しない）。
+      同じユーザーが繰り返し呼ぶと毎回別の番組がランダムに返るが、**そのユーザーへの割り当て候補（未使用の既存番組）が尽きると**
+      `429`（`RESET_LIMIT_EXCEEDED`、通常の1日3回制限と同じレスポンス形式を流用）を返す
+    - `GET /api/users/{userId}/programs/latest`・`GET /api/users/{userId}/programs` は
+      `programs.user_id`ではなく`demo_program_assignments`を参照し、このユーザーに割り当て済みの番組を返す
+      （`createdAt`は番組の実際の生成日時ではなく、そのユーザーへの割り当て日時になる）
+
 servers:
   - url: http://localhost:8080
     description: ローカル開発環境（VITE_API_BASE_URL、詳細は frontend/CLAUDE.md#環境変数）
@@ -306,9 +320,36 @@ paths:
         生成処理が実行中の間に2回目のリクエストが来た場合、そのリクエストはパイプラインを
         起動せず`409`（`ALREADY_GENERATING`）を即返す（実装方針の詳細は
         [backend/docs/api-handlers.md](../backend/docs/api-handlers.md#regenerateの多重リクエスト防止)参照）。
+
+        **`DEMO_MODE`時のみ同期応答になる。** 上記の非同期化はDBへ書き込む実生成
+        （記事取得〜LLM〜TTS）の話で、`DEMO_MODE`が有効なときはこのエンドポイントの
+        挙動そのものが変わり、既存の`programs`から未割り当ての1件をランダムに選んで
+        即座に`201`＋`Program`本体を返す（ポーリング不要。詳細は上記「DEMO_MODE」節
+        参照）。フロントエンドはこのエンドポイントを叩いた時点では`DEMO_MODE`か否かを
+        知らないため、レスポンスの形（`chapters`の有無）で`202`か`201`かを判別する
+        （`frontend/src/lib/useGenerateProgram.ts`参照）。
       parameters:
         - $ref: "#/components/parameters/UserId"
+        - name: bypass
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: |
+            指定すると、1日3回までのリセット上限のカウント・チェックを完全にスキップする。
+            オンボーディング直後の初回生成とホーム画面の「今すぐ生成する」で使う
+            （その日の最初の1本は「作り直し」ではないため）。`DEMO_MODE`時は無視される
+            （`demo_program_assignments`による別の割り当て管理のため、この上限自体を
+            参照しない）。
       responses:
+        "201":
+          description: |
+            （`DEMO_MODE`時のみ）既存番組をランダムに割り当てて即座に返した。
+            `createdAt`は番組の実際の生成日時ではなく、このユーザーへの割り当て日時。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Program"
         "202":
           description: |
             受理された。生成はバックグラウンドで開始され、この時点ではまだ完了していない。
@@ -331,6 +372,18 @@ paths:
                 error:
                   code: USER_NOT_FOUND
                   message: "指定されたユーザーが見つかりません"
+        "429":
+          description: |
+            （`DEMO_MODE`時のみ）このユーザーへ割り当てられる未使用の既存番組が尽きた。
+            通常の1日3回制限と同じレスポンス形式を流用している。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error:
+                  code: RESET_LIMIT_EXCEEDED
+                  message: "本日の作り直し回数の上限（3回）に達しています"
         "409":
           description: 同じユーザーの作り直しリクエストがすでに処理中
           content:
@@ -968,6 +1021,7 @@ components:
                 - NO_UNSEEN_ARTICLES
                 - UPSTREAM_LLM_FAILED
                 - UPSTREAM_TTS_FAILED
+                - DEMO_MODE_DISABLED
                 - INTERNAL_ERROR
             message:
               type: string

@@ -18,7 +18,17 @@ type batchRunResponse struct {
 
 // runBatch acknowledges immediately; generation continues independently of
 // the request context because the HTTP client is not expected to wait for it.
+//
+// Disabled entirely under DEMO_MODE: the frontend no longer calls this
+// endpoint (both Onboarding and Home now use regenerate instead, precisely
+// because this one used to sweep every overdue user, not just the caller),
+// and DEMO_MODE means the heavy select/LLM/TTS pipeline should never run.
 func (s *Server) runBatch(w http.ResponseWriter, r *http.Request) {
+	if s.demoMode {
+		writeError(w, http.StatusServiceUnavailable, "DEMO_MODE_DISABLED", "DEMO_MODEが有効なため、この生成エンドポイントは無効化されています")
+		return
+	}
+
 	acceptedAt := time.Now().UTC()
 	writeJSON(w, http.StatusAccepted, batchRunResponse{AcceptedAt: acceptedAt})
 

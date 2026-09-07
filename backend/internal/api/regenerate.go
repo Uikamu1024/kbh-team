@@ -57,13 +57,17 @@ type regenerateAcceptedResponse struct {
 // right after onboarding — and any later "作り直す" — is generated on the
 // spot from current RSS content, with no dependency on cmd/ingest having run
 // first. It does NOT replace or delete the existing latest program — it adds
-// a new one to the history. This endpoint doubles as both "generate today's
-// first program" (frontend/src/lib/useGenerateProgram.ts, called right after
-// onboarding and from the home screen's "今すぐ生成する") and "今日の番組を
-// リセット" (Profile画面): the daily reset-count limit (IncrementResetCount,
-// 3/day) is only charged when the user already has a program from today —
-// see the HasProgramSince check in runRegenerate — so the first generation
-// of the day never consumes it.
+// a new one to the history, the same as POST /api/users/{userId}/programs
+// used to (that endpoint was removed as a duplicate once this one stopped
+// replacing).
+//
+// The daily reset-count limit (IncrementResetCount, 3/day) is normally
+// charged — unless the ?bypass query parameter is present, in which case the
+// limit check/counter update is skipped entirely. This exists so the
+// onboarding flow's first-ever generation and the home screen's「今すぐ生成
+// する」(both via frontend/src/lib/useGenerateProgram.ts) don't eat into the
+// user's 3/day reset budget before they've had a chance to use it — only an
+// explicit「今日の番組をリセット」(Profile画面) charges it.
 //
 // The handler itself only does the fast, synchronous checks (user exists,
 // not already generating) and then hands off to a background goroutine
@@ -75,7 +79,16 @@ type regenerateAcceptedResponse struct {
 // a real stoppage, not lying). The in-memory lock/state is intentionally
 // process-local, matching the single backend process deployment assumed by
 // this project.
+//
+// When DEMO_MODE is on, the whole pipeline (select → LLM → TTS) is skipped
+// entirely in favor of regenerateLatestProgramDemo, which hands out an
+// already-existing program at random instead.
 func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request) {
+	if s.demoMode {
+		s.regenerateLatestProgramDemo(w, r)
+		return
+	}
+
 	userID := r.PathValue("userId")
 	user, err := s.database.GetUser(r.Context(), userID)
 	if err != nil {
@@ -92,17 +105,19 @@ func (s *Server) regenerateLatestProgram(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	bypass := r.URL.Query().Has("bypass")
 	writeJSON(w, http.StatusAccepted, regenerateAcceptedResponse{AcceptedAt: time.Now().UTC()})
 
-	go s.runRegenerate(user)
+	go s.runRegenerate(user, bypass)
 }
 
 // runRegenerate does the actual work for regenerateLatestProgram, in the
 // background. Every exit path calls either s.finishGenerating (success) or
 // s.failGenerating (error, recorded so a polling client can learn why) —
 // there is no unwinding writeError/writeJSON here since the HTTP response
-// was already sent by the caller.
-func (s *Server) runRegenerate(user db.User) {
+// was already sent by the caller. bypass skips the daily reset-count charge
+// (see the doc comment on regenerateLatestProgram).
+func (s *Server) runRegenerate(user db.User, bypass bool) {
 	userID := user.ID
 	defer func() {
 		// finishGenerating/failGenerating are called explicitly on every
@@ -158,21 +173,16 @@ func (s *Server) runRegenerate(user db.User) {
 	}
 	debuglog.Printf("api: regenerate: user %s: selected %d chapters in %s", userID, len(selected), time.Since(stageStartedAt).Round(time.Millisecond))
 
-	today, err := deliveryDate(time.Now(), user.DeliveryTime)
-	if err != nil {
-		s.failGenerating(userID, "INTERNAL_ERROR", "配信日の計算に失敗しました")
-		return
-	}
-	// その日の最初の1本（オンボーディング直後・ホームの「今すぐ生成する」）は
-	// 「作り直し」ではないため、1日3回までのリセット上限にカウントしない。
-	// 既にその日の番組がある状態でこのエンドポイントが呼ばれたときだけ、
-	// 本来の「今日の番組をリセット」として上限を消費する。
-	hasProgramToday, err := s.database.HasProgramSince(ctx, userID, today)
-	if err != nil {
-		s.failGenerating(userID, "INTERNAL_ERROR", "本日の番組の有無を確認できません")
-		return
-	}
-	if hasProgramToday {
+	// bypass（オンボーディング直後・ホームの「今すぐ生成する」）はその日の
+	// 最初の1本であり「作り直し」ではないため、1日3回までのリセット上限に
+	// カウントしない。明示的な「今日の番組をリセット」（Profile画面）のときだけ
+	// 上限を消費する。
+	if !bypass {
+		today, err := deliveryDate(time.Now(), user.DeliveryTime)
+		if err != nil {
+			s.failGenerating(userID, "INTERNAL_ERROR", "配信日の計算に失敗しました")
+			return
+		}
 		if _, err := s.database.IncrementResetCount(ctx, userID, today); err != nil {
 			code, message := resetErrorCodeAndMessage(err)
 			s.failGenerating(userID, code, message)
@@ -217,6 +227,42 @@ func (s *Server) runRegenerate(user db.User) {
 
 	debuglog.Printf("api: regenerate: user %s: done in %s", userID, time.Since(requestStartedAt).Round(time.Millisecond))
 	s.finishGenerating(userID)
+}
+
+// regenerateLatestProgramDemo is DEMO_MODE's stand-in for real generation
+// (used by both the onboarding first-ever call and the profile "reset"
+// button, since both go through regenerateLatestProgram). It never runs the
+// select/LLM/TTS pipeline and never writes to programs/chapters: it picks an
+// already-existing program at random — one this user hasn't been handed
+// before — and records that assignment in demo_program_assignments
+// (backend/internal/db/demo.go). Once every existing program has already
+// been assigned to this user, it reuses the real reset path's 429
+// RESET_LIMIT_EXCEEDED response, since from the caller's point of view the
+// effect is the same ("nothing new right now").
+func (s *Server) regenerateLatestProgramDemo(w http.ResponseWriter, r *http.Request) {
+	userID := r.PathValue("userId")
+
+	if !s.startGenerating(userID) {
+		writeError(w, http.StatusConflict, "ALREADY_GENERATING", "前回のリクエストを処理中です。しばらく待ってから再度お試しください")
+		return
+	}
+	defer s.finishGenerating(userID)
+
+	programID, assignedAt, err := s.database.AssignRandomDemoProgram(r.Context(), userID)
+	if err != nil {
+		s.writeResetError(w, err)
+		return
+	}
+
+	program, chapters, err := s.database.GetProgramByID(r.Context(), programID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "割り当てた番組を取得できません")
+		return
+	}
+	// Displayed as "just generated" for this user, not whenever the
+	// underlying program was actually first created in the DB.
+	program.CreatedAt = assignedAt
+	writeJSON(w, http.StatusCreated, makeProgramResponse(program, chapters))
 }
 
 // startGenerating acquires the per-user generation lock, discarding any
@@ -313,6 +359,22 @@ func resetErrorCodeAndMessage(err error) (string, string) {
 	default:
 		return "INTERNAL_ERROR", "作り直し回数を更新できません"
 	}
+}
+
+// writeResetError writes the same code/message resetErrorCodeAndMessage maps
+// (used by the background runRegenerate path via failGenerating) as an HTTP
+// error response, for synchronous handlers like regenerateLatestProgramDemo
+// that still have direct access to w.
+func (s *Server) writeResetError(w http.ResponseWriter, err error) {
+	code, message := resetErrorCodeAndMessage(err)
+	status := http.StatusInternalServerError
+	switch code {
+	case "USER_NOT_FOUND":
+		status = http.StatusNotFound
+	case "RESET_LIMIT_EXCEEDED":
+		status = http.StatusTooManyRequests
+	}
+	writeError(w, status, code, message)
 }
 
 func deliveryDate(now time.Time, deliveryTime string) (time.Time, error) {
