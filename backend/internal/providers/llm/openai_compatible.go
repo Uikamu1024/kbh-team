@@ -139,6 +139,7 @@ type openAIChatResponse struct {
 	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`
+		Code    int    `json:"code"`
 	} `json:"error"`
 }
 
@@ -236,7 +237,18 @@ func (o *OpenAICompatibleLLM) chatCompletionsOnce(ctx context.Context, requestBo
 		return "", 0, fmt.Errorf("decode OpenAI-compatible provider response: %w", err)
 	}
 	if result.Error != nil {
-		return "", 0, fmt.Errorf("OpenAI-compatible provider API error: %s", result.Error.Message)
+		// OpenRouter (and similar aggregators) can return HTTP 200 with an
+		// error object embedded in the body when the routed upstream model
+		// itself fails (e.g. "Provider returned error") — this is the same
+		// kind of transient failure as a 429/5xx at the transport level, and
+		// is common with free-tier models under load, so it gets the same
+		// retry treatment. A code in the 4xx range (bad request, auth) is
+		// not retried since retrying would fail identically.
+		err := fmt.Errorf("OpenAI-compatible provider API error: %s", result.Error.Message)
+		if result.Error.Code != 0 && result.Error.Code < http.StatusInternalServerError && result.Error.Code != http.StatusTooManyRequests {
+			return "", 0, err
+		}
+		return "", retryAfterDuration(""), err
 	}
 	if len(result.Choices) == 0 || strings.TrimSpace(result.Choices[0].Message.Content) == "" {
 		return "", 0, errors.New("OpenAI-compatible provider response did not contain a choice")

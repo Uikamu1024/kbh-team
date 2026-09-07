@@ -131,6 +131,13 @@ func (d *DB) StoreIngestedArticle(ctx context.Context, article CachedArticle) er
 	}
 	primary := !hasExistingPrimary
 
+	tags := article.Article.Tags
+	if tags == nil {
+		// A nil slice (e.g. the LLM classified zero tags for this article)
+		// would otherwise be sent as SQL NULL, violating the tags column's
+		// NOT NULL constraint (0001_init.sql).
+		tags = []string{}
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO articles (
 			id, feed_id, topic_group_id, is_primary, title, shortened_title, author,
@@ -141,7 +148,7 @@ func (d *DB) StoreIngestedArticle(ctx context.Context, article CachedArticle) er
 		)`, article.ID, article.FeedID, article.TopicGroupID, primary, article.Article.Title,
 		article.Article.ShortenedTitle, article.Article.Author, article.Article.Body,
 		article.Article.AbbreviatedBody, article.Article.PublishedAt, article.Article.SourceName,
-		article.Article.SourceURL, article.Article.Tags); err != nil {
+		article.Article.SourceURL, tags); err != nil {
 		return fmt.Errorf("insert cached article: %w", err)
 	}
 

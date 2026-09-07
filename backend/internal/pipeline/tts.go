@@ -49,45 +49,90 @@ func SynthesizeChapters(ctx context.Context, synthesizer tts.TTS, greetingText s
 			}
 			lineAudio = append(lineAudio, audio)
 		}
-		lineAudio, err := addNaturalPauses(lineAudio, lines)
-		if err != nil {
-			return nil, fmt.Errorf("add pauses for chapter %d: %w", chapterIndex, err)
-		}
 
-		audio, format, err := concatenateWAVs(lineAudio)
+		combinedAudio, format, offsetsSec, err := combineLineAudio(lineAudio, lines)
 		if err != nil {
 			return nil, fmt.Errorf("combine audio for chapter %d: %w", chapterIndex, err)
 		}
+
+		// The synthetic greeting line prepended above (for the position-0
+		// chapter) is in the synthesized audio but not in chapter.Lines, so
+		// its own offset (always 0) is dropped here to keep
+		// LineStartOffsetsSec aligned 1:1 with chapter.Lines.
+		lineOffsets := offsetsSec
+		if chapterIndex == greetingIndex && greetingText != "" {
+			lineOffsets = offsetsSec[1:]
+		}
+
 		result = append(result, domain.ChapterAudio{
-			ChapterDraft: chapter,
-			AudioBytes:   audio,
-			DurationSec:  wavDurationSeconds(len(format.data), format.byteRate),
+			ChapterDraft:        chapter,
+			AudioBytes:          combinedAudio,
+			DurationSec:         wavDurationSeconds(len(format.data), format.byteRate),
+			LineStartOffsetsSec: lineOffsets,
 		})
 	}
 	return result, nil
 }
 
-func addNaturalPauses(wavs [][]byte, lines []domain.Line) ([][]byte, error) {
-	if len(wavs) < 2 || len(wavs) != len(lines) {
-		return wavs, nil
+// combineLineAudio inserts natural pauses between consecutive line WAVs,
+// concatenates everything into one PCM stream, and returns each line's real
+// speech-start offset (seconds from the chapter's start, as measured from
+// the actual synthesized audio — not estimated from character counts),
+// index-aligned with lines. Merged with what used to be a separate
+// concatenateWAVs step because computing real offsets requires parsing every
+// line's own WAV (not just wavs[0], as the old pause-only pass did), and
+// concatenateWAVs already parsed every segment anyway.
+func combineLineAudio(lineAudio [][]byte, lines []domain.Line) ([]byte, wavFormat, []float64, error) {
+	if len(lineAudio) == 0 {
+		format := defaultWAVFormat()
+		return encodeWAV(format, nil), format, nil, nil
+	}
+	if len(lineAudio) != len(lines) {
+		return nil, wavFormat{}, nil, fmt.Errorf("line audio count %d does not match line count %d", len(lineAudio), len(lines))
 	}
 
-	format, err := parseWAV(wavs[0])
+	reference, err := parseWAV(lineAudio[0])
 	if err != nil {
-		return nil, err
+		return nil, wavFormat{}, nil, fmt.Errorf("parse line 0 WAV: %w", err)
 	}
-	result := make([][]byte, 0, len(wavs)*2-1)
-	for index, audio := range wavs {
+	reference.data = nil
+
+	var pcm bytes.Buffer
+	offsetsSec := make([]float64, len(lineAudio))
+	for index, audio := range lineAudio {
 		if index > 0 {
 			pauseSec := sameSpeakerPauseSec
 			if lines[index-1].Speaker != lines[index].Speaker {
 				pauseSec = speakerChangePauseSec
 			}
-			result = append(result, silenceWAV(format, pauseSec))
+			pause, err := parseWAV(silenceWAV(reference, pauseSec))
+			if err != nil {
+				return nil, wavFormat{}, nil, fmt.Errorf("build pause before line %d: %w", index, err)
+			}
+			if _, err := pcm.Write(pause.data); err != nil {
+				return nil, wavFormat{}, nil, err
+			}
 		}
-		result = append(result, audio)
+
+		format, err := parseWAV(audio)
+		if err != nil {
+			return nil, wavFormat{}, nil, fmt.Errorf("parse line %d WAV: %w", index, err)
+		}
+		if !sameWAVFormat(reference, format) {
+			return nil, wavFormat{}, nil, fmt.Errorf("line %d has a different PCM format", index)
+		}
+		offsetsSec[index] = float64(pcm.Len()) / float64(reference.byteRate)
+		if _, err := pcm.Write(format.data); err != nil {
+			return nil, wavFormat{}, nil, err
+		}
 	}
-	return result, nil
+	if uint64(pcm.Len()) > uint64(math.MaxUint32)-36 {
+		return nil, wavFormat{}, nil, fmt.Errorf("combined WAV is too large")
+	}
+
+	combined := reference
+	combined.data = pcm.Bytes()
+	return encodeWAV(combined, combined.data), combined, offsetsSec, nil
 }
 
 func silenceWAV(format wavFormat, seconds float64) []byte {
@@ -105,39 +150,6 @@ type wavFormat struct {
 	blockAlign    uint16
 	bitsPerSample uint16
 	data          []byte
-}
-
-// concatenateWAVs keeps the first WAV's PCM format and joins only data
-// chunks. Rebuilding a canonical header avoids carrying offsets or metadata
-// from any individual VOICEVOX response into the combined file.
-func concatenateWAVs(wavs [][]byte) ([]byte, wavFormat, error) {
-	if len(wavs) == 0 {
-		format := defaultWAVFormat()
-		return encodeWAV(format, nil), format, nil
-	}
-
-	var combined wavFormat
-	var pcm bytes.Buffer
-	for index, audio := range wavs {
-		format, err := parseWAV(audio)
-		if err != nil {
-			return nil, wavFormat{}, fmt.Errorf("parse WAV %d: %w", index, err)
-		}
-		if index == 0 {
-			combined = format
-			combined.data = nil
-		} else if !sameWAVFormat(combined, format) {
-			return nil, wavFormat{}, fmt.Errorf("WAV %d has a different PCM format", index)
-		}
-		if _, err := pcm.Write(format.data); err != nil {
-			return nil, wavFormat{}, err
-		}
-	}
-	if uint64(pcm.Len()) > uint64(math.MaxUint32)-36 {
-		return nil, wavFormat{}, fmt.Errorf("combined WAV is too large")
-	}
-	combined.data = pcm.Bytes()
-	return encodeWAV(combined, combined.data), combined, nil
 }
 
 func parseWAV(audio []byte) (wavFormat, error) {

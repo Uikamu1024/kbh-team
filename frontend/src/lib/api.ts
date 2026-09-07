@@ -1,21 +1,19 @@
 import type {
   ApiErrorBody,
   ApiErrorCode,
-  BatchRunResponse,
   CreateUserResponse,
+  GenerationStatusResponse,
   HealthResponse,
   Program,
   ProgramHistoryResponse,
+  RegenerateAcceptedResponse,
   SettingsRequest,
   UserProfile,
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 
-// 記事取得→LLM→TTSを直列実行するエンドポイント（作り直し）は
-// バックエンド側のハンドラタイムアウト（10分）に合わせて長めに取る。
 const DEFAULT_TIMEOUT_MS = 10_000;
-const LONG_RUNNING_TIMEOUT_MS = 600_000;
 
 export class ApiError extends Error {
   code: ApiErrorCode;
@@ -116,12 +114,17 @@ export function listPrograms(
   );
 }
 
-export function regenerateLatestProgram(userId: string): Promise<Program> {
-  return apiFetch<Program>(
-    `/api/users/${userId}/programs/latest/regenerate`,
-    { method: "POST" },
-    LONG_RUNNING_TIMEOUT_MS,
-  );
+// 202 Acceptedを即座に返す非同期API。実際の生成はバックグラウンドで進み、
+// 進行状況・完了・失敗はgetGenerationStatusをポーリングして確認する
+// （useGenerateProgram参照）。
+export function regenerateLatestProgram(userId: string): Promise<RegenerateAcceptedResponse> {
+  return apiFetch<RegenerateAcceptedResponse>(`/api/users/${userId}/programs/latest/regenerate`, {
+    method: "POST",
+  });
+}
+
+export function getGenerationStatus(userId: string): Promise<GenerationStatusResponse> {
+  return apiFetch<GenerationStatusResponse>(`/api/users/${userId}/generation-status`);
 }
 
 export function getProgram(programId: string): Promise<Program> {
@@ -134,11 +137,4 @@ export function getAudioUrl(programId: string, chapterId: string): string {
 
 export function getHealth(): Promise<HealthResponse> {
   return apiFetch<HealthResponse>("/api/health");
-}
-
-// 開発・デモ用：全ユーザー分の番組をまとめて生成するバッチを起動する
-// （本来は毎朝6:00相当のcron想定のエンドポイント。「自分の分だけ」生成する
-// 専用APIはまだ無いため、ホーム画面の手動生成ボタンから暫定的に使う）。
-export function runBatch(): Promise<BatchRunResponse> {
-  return apiFetch<BatchRunResponse>("/api/batch/run", { method: "POST" });
 }

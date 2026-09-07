@@ -95,6 +95,7 @@ func (s *Server) processBatchUser(user db.User) {
 	debuglog.Printf("batch: user %s: selected %d chapters in %s", user.ID, len(selected), time.Since(stageStartedAt).Round(time.Millisecond))
 
 	stageStartedAt = time.Now()
+	s.setGeneratingStage(user.ID, stageScripting)
 	greetingText, drafts, err := pipeline.GenerateScript(ctx, s.languageModel, selected)
 	if err != nil {
 		log.Printf("batch: generate script for user %s failed after %s: %v", user.ID, time.Since(stageStartedAt).Round(time.Millisecond), err)
@@ -103,6 +104,7 @@ func (s *Server) processBatchUser(user db.User) {
 	debuglog.Printf("batch: user %s: generated script for %d chapters in %s", user.ID, len(drafts), time.Since(stageStartedAt).Round(time.Millisecond))
 
 	stageStartedAt = time.Now()
+	s.setGeneratingStage(user.ID, stageFinishing)
 	chapters, err := pipeline.SynthesizeChapters(ctx, s.speechSynthesizer, greetingText, drafts)
 	if err != nil {
 		log.Printf("batch: synthesize chapters for user %s failed after %s: %v", user.ID, time.Since(stageStartedAt).Round(time.Millisecond), err)

@@ -67,9 +67,11 @@ expect_status "PUT tags (invalid, expect 400)" 400 "$invalid_status"
 profile_status=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/users/$user_id")
 expect_status "GET profile" 200 "$profile_status"
 
-# 7. demo/generate（DB非永続化。モックモードで完結する）
+# 7. demo/generate（DB非永続化。記事キャッシュ（cmd/ingestで事前投入）とマッチする
+#    タグが必要。タグはconfig/tags.jsonの許可集合を使うこと（frontend/src/config/tags.json
+#    と1文字違わず一致させる必要がある。詳細はdocs/api-contract.yamlのx-open-questions参照）
 demo_resp=$(curl -s -X POST "$BASE_URL/api/demo/generate" \
-  -H "Content-Type: application/json" -d '{"tags":["AI"]}')
+  -H "Content-Type: application/json" -d '{"tags":["生成AI"]}')
 demo_program_id=$(echo "$demo_resp" | jq -r '.id')
 demo_chapter_id=$(echo "$demo_resp" | jq -r '.chapters[0].id // empty')
 if [ -n "$demo_program_id" ] && [ "$demo_program_id" != "null" ]; then

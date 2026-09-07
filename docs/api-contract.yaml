@@ -292,8 +292,15 @@ paths:
         跨いだ日付）が変わった時点でサーバー側が自動的に0へリセットする
         （[06-storage.md](../backend/docs/pipeline/06-storage.md)参照）。
 
-        同期実行のため、`POST /api/demo/generate` と同様にレスポンスまで数十秒〜数分程度
-        かかる想定でタイムアウトを設定すること（サーバー側ハンドラのタイムアウトは10分）。
+        **改訂：非同期実行になった。** 以前はクライアントの接続を保持したまま同期的に
+        パイプライン全体を実行していたが、これだとページのリロードやタブを閉じる操作で
+        クライアント側のリクエストが中断されると、サーバー側の`r.Context()`もキャンセル
+        されて生成処理自体が実際に打ち切られてしまっていた（実運用で確認済みの不具合）。
+        現在は、`userId`の存在確認と多重リクエストチェックのみ同期的に行った上で`202`を
+        即座に返し、実際のパイプライン実行はリクエストと切り離したバックグラウンドで行う。
+        クライアントは`GET /api/users/{userId}/generation-status`をポーリングして進行状況・
+        完了・失敗（失敗時はコード付き）を知る。ポーリング中にページを閉じても、
+        バックグラウンドの生成処理自体は継続する。
 
         **多重リクエストはリクエスト受信時点で即座に拒否する。** 同じ`userId`に対して
         生成処理が実行中の間に2回目のリクエストが来た場合、そのリクエストはパイプラインを
@@ -302,12 +309,18 @@ paths:
       parameters:
         - $ref: "#/components/parameters/UserId"
       responses:
-        "201":
-          description: 生成成功。新しく追加された番組を返す
+        "202":
+          description: |
+            受理された。生成はバックグラウンドで開始され、この時点ではまだ完了していない。
+            進行状況・完了・失敗は`GET /api/users/{userId}/generation-status`をポーリング
+            して確認する（失敗時は`generation-status`のレスポンスに`lastError`として、
+            以前このエンドポイントが直接返していたのと同じ`code`／`message`が入る：
+            `UPSTREAM_FETCH_FAILED`・`UPSTREAM_LLM_FAILED`・`UPSTREAM_TTS_FAILED`・
+            `ARTICLE_CACHE_EMPTY`・`RESET_LIMIT_EXCEEDED`・`INTERNAL_ERROR`）。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Program"
+                $ref: "#/components/schemas/RegenerateAccepted"
         "404":
           description: "`userId` が存在しない"
           content:
@@ -328,28 +341,58 @@ paths:
                 error:
                   code: ALREADY_GENERATING
                   message: "前回のリクエストを処理中です。しばらく待ってから再度お試しください"
-        "429":
-          description: 本日の上限（3回）に達している
+
+  /api/users/{userId}/generation-status:
+    get:
+      operationId: getGenerationStatus
+      tags: [programs]
+      summary: 番組生成の進行状況を取得する（ポーリング用）
+      description: |
+        `POST /api/users/{userId}/programs/latest/regenerate`（および`POST /api/batch/run`
+        経由のバッチ生成）が現在このユーザーに対して実行中かどうかと、大まかな進行段階を
+        その場で返す。DBは参照せず、多重リクエスト防止に使っているのと同じサーバー
+        プロセス内のメモリ状態だけを見て即座に返すため、頻繁なポーリング（1〜2秒間隔）
+        を想定した軽量なエンドポイントである。
+
+        `stage`は次の3段階のみを区別する（実装の詳細な内部ステップはまとめて丸める）：
+        - `collecting`：記事取得〜重複除去〜重要度判定（バッチ経路ではキャッシュ済み
+          トピックの選定）
+        - `scripting`：台本生成（LLM呼び出し）
+        - `finishing`：音声合成（TTS）〜保存
+
+        対象ユーザーが現在生成中でない場合、`generating: false`を返す。**改訂：**
+        直近の試行が失敗していた場合は、その`lastError`（`code`／`message`。
+        `POST .../regenerate`が非同期化される前は同エンドポイントが直接返していたのと
+        同じcode体系）も併せて返す。これは、生成中にページがリロードされてクライアントが
+        一度切断されても（生成処理自体はバックグラウンドで継続するため）、再接続後に
+        「何が起きたか」を正しく伝えるためのもの。`lastError`は次に`POST .../regenerate`
+        が呼ばれる（＝新しい試行が始まる）と上書きされる。`userId`の実在チェックは行わない
+        （存在しないIDでも常に`generating: false`を返すだけで、軽量なメモリ読み取りに
+        留めるため404にはしない）。
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: 生成中かどうか、生成中であればその進行段階、直近の試行が失敗していればその内容
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-              example:
-                error:
-                  code: RESET_LIMIT_EXCEEDED
-                  message: "本日の作り直し回数の上限（3回）に達しています"
-        "502":
-          description: "外部プロバイダの呼び出し失敗（`POST /api/demo/generate`と同じ`UPSTREAM_*`のcode体系）"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "503":
-          description: "記事キャッシュが利用できない（`POST /api/demo/generate`と同じ`ARTICLE_CACHE_EMPTY`/`NO_UNSEEN_ARTICLES`のcode体系）。この2エラーは`reset_count`を消費しない"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/GenerationStatus"
+              examples:
+                generating:
+                  value:
+                    generating: true
+                    stage: scripting
+                idle:
+                  value:
+                    generating: false
+                idleAfterFailure:
+                  summary: 直近の試行が失敗した（クライアントが切断されていても記録は残る）
+                  value:
+                    generating: false
+                    lastError:
+                      code: ARTICLE_CACHE_EMPTY
+                      message: "選んだテーマの記事が見つかりませんでした"
 
   /api/programs/{programId}:
     get:
@@ -650,6 +693,16 @@ components:
           format: date-time
           example: "2026-08-29T06:00:00+09:00"
 
+    RegenerateAccepted:
+      type: object
+      required: [acceptedAt]
+      properties:
+        acceptedAt:
+          type: string
+          format: date-time
+          description: "生成をバックグラウンドで開始した時刻。完了はまだしていない（GET .../generation-statusで確認する）"
+          example: "2026-09-07T21:32:17+09:00"
+
     HealthResponse:
       type: object
       required: [status, postgres, voicevox]
@@ -663,6 +716,42 @@ components:
         voicevox:
           type: string
           enum: [ok, error]
+
+    GenerationStatus:
+      type: object
+      required: [generating]
+      properties:
+        generating:
+          type: boolean
+          description: このユーザーの番組生成が現在サーバー内で実行中かどうか
+        stage:
+          type: string
+          description: "`generating`が`true`のときのみ含まれる、大まかな進行段階"
+          enum:
+            - collecting
+            - scripting
+            - finishing
+        lastError:
+          description: |
+            `generating`が`false`で、かつ直近の試行が失敗していた場合のみ含まれる。
+            クライアントがページリロード等で切断された後に再接続しても、失敗した理由を
+            伝えられるようにするためのもの。次に`POST .../regenerate`が呼ばれると
+            上書きされる。
+          allOf:
+            - $ref: "#/components/schemas/GenerationLastError"
+
+    GenerationLastError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: |
+            以前`POST .../regenerate`が同期的に返していたのと同じcode体系
+            （`UPSTREAM_FETCH_FAILED` / `UPSTREAM_LLM_FAILED` / `UPSTREAM_TTS_FAILED` /
+            `ARTICLE_CACHE_EMPTY` / `RESET_LIMIT_EXCEEDED` / `INTERNAL_ERROR`）
+        message:
+          type: string
 
     Program:
       type: object
@@ -721,6 +810,7 @@ components:
         - script
         - audioUrl
         - durationSec
+        - lineStartOffsetsSec
       properties:
         id:
           type: string
@@ -744,13 +834,9 @@ components:
           type: string
           description: |
             このチャプターの読み上げ台本全文（[04-script.md](../backend/docs/pipeline/04-script.md)で
-            生成されたもの、`chapters.script`カラムに対応）。プレイヤー画面でSpotifyの歌詞表示のように
-            現在の読み上げ箇所をハイライトする用途に使う。
-
-            **注意：文単位のタイムスタンプは持たない。** 台本と音声を強制アライメントする仕組みは
-            現状のパイプラインに無いため、クライアント側は音声の再生位置（`durationSec`に対する
-            経過秒数の比率）から表示行を按分計算する、疑似的な同期にとどまる
-            （厳密な同期は未決定事項参照）。改行区切りの複数文からなる
+            生成されたもの、`chapters.script`カラムに対応）。改行区切りの複数行からなる。
+            プレイヤー画面でSpotifyの歌詞表示のように現在の読み上げ箇所をハイライトする用途に使う
+            （各行の実際の発話開始位置は`lineStartOffsetsSec`を参照）。
           example: "まず注目は新しい言語モデルの発表です。\n前世代と比べて推論速度が2倍になったとのことです。"
         audioUrl:
           type: string
@@ -761,6 +847,17 @@ components:
             チャプター単体の再生時間（秒）。プレイヤーのシークバー初期表示に使う
             （`<audio>`のメタデータ読み込み完了を待たずに表示できるようにするため）
           example: 95
+        lineStartOffsetsSec:
+          type: array
+          items:
+            type: number
+          description: |
+            `script`を改行分割した各行（空行を除去する前のインデックス）が実際に発話開始する、
+            チャプター先頭からの経過秒数（秒、小数）。TTS合成時
+            （[05-tts.md](../backend/docs/pipeline/05-tts.md)）に話者ごとの読み上げ速度・行間ポーズを
+            含めて実測した値であり、文字数比率による推定ではない。本フィールド追加前に生成された
+            番組では空配列になり、クライアントはその場合に文字数比按分へフォールバックする。
+          example: [0, 3.2, 7.8]
 
     UserProfile:
       type: object
@@ -879,5 +976,4 @@ x-open-questions:
   - "プリセットタグ一覧の管理場所（フロントエンドのハードコード／バックエンドでマスタ管理）と、`PUT /api/users/{userId}/tags`でのバリデーション有無"
   - "`POST /api/demo/generate`が一時保存する音声ファイルの掃除タイミング（TTL／起動時クリーンアップ等）"
   - "`POST /api/batch/run`の同時実行防止（多重起動をどう防ぐか。ロックファイル／DBフラグ等）"
-  - "`Chapter.script`の文単位タイムスタンプ（真のカラオケ風同期表示をやるなら、VOICEVOXのモーラ単位タイミングを使ったアライメント生成が必要。MVPでは`durationSec`からの按分表示で妥協している）"
   - "波形シークバーの実データ化（現状UIモックは疑似ランダムな波形を描画しているだけで、実際の音声波形ピーク値をAPIから返す仕組みは無い。`Chapter`に`waveformPeaks: number[]`を追加するかどうか）"

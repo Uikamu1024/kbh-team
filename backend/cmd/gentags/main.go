@@ -84,7 +84,7 @@ func run() error {
 	llmClient := &http.Client{Timeout: 60 * time.Second}
 	jinaFetcher := fetcher.NewJinaFetcher(fetchClient)
 	if jinaFetcher.MockMode() {
-		log.Printf("JINA_AI_API_KEY is not set; the jina.ai fallback will return mock text")
+		log.Printf("JINA_AI_API_KEY is not set; the jina.ai fallback will run unauthenticated at a lower rate limit")
 	}
 
 	corpora := make([]string, 0, len(feeds))

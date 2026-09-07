@@ -14,7 +14,10 @@ export const TopBar = forwardRef<HTMLElement>(function TopBar(_props, ref) {
       className="fixed inset-x-0 top-0 z-10 bg-bg/95 px-5 pb-2 pt-4 backdrop-blur-md"
     >
       <div className="flex items-center justify-between">
-        <span className="text-[17px] font-bold tracking-tight">Daybrief</span>
+        <span className="flex items-center gap-1.5">
+          <img src="/icon.png" alt="" className="h-6 w-6 rounded-md" />
+          <span className="text-[17px] font-bold tracking-tight">Daybrief</span>
+        </span>
         <span className="text-[13px] text-text-secondary">{today}</span>
       </div>
       {showBack && (

@@ -102,14 +102,15 @@ func makeDemoProgramResponse(programID, greetingText string, changeCount int, ch
 	for index, chapter := range chapters {
 		totalDuration += chapter.DurationSec
 		responseChapters = append(responseChapters, chapterResponse{
-			ID:          chapterIDs[index],
-			Position:    chapter.Position,
-			Title:       chapter.Primary.Title,
-			SourceURL:   chapter.Primary.SourceURL,
-			SourceName:  chapter.Primary.SourceName,
-			Script:      demoChapterScript(chapter.Lines),
-			AudioURL:    "/api/audio/" + programID + "/" + chapterIDs[index],
-			DurationSec: chapter.DurationSec,
+			ID:                  chapterIDs[index],
+			Position:            chapter.Position,
+			Title:               chapter.Primary.Title,
+			SourceURL:           chapter.Primary.SourceURL,
+			SourceName:          chapter.Primary.SourceName,
+			Script:              demoChapterScript(chapter.Lines),
+			AudioURL:            "/api/audio/" + programID + "/" + chapterIDs[index],
+			DurationSec:         chapter.DurationSec,
+			LineStartOffsetsSec: chapter.LineStartOffsetsSec,
 		})
 	}
 	title := ""

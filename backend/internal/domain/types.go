@@ -118,4 +118,11 @@ type ChapterAudio struct {
 	ChapterDraft
 	AudioBytes  []byte
 	DurationSec int
+	// LineStartOffsetsSec is each line's real speech-start offset (seconds
+	// from the chapter's start), index-aligned with ChapterDraft.Lines.
+	// Computed in pipeline.SynthesizeChapters from actual synthesized-audio
+	// durations (see combineLineAudio in tts.go) — not derived from
+	// character counts, unlike the frontend's pre-existing fallback
+	// heuristic for chapters generated before this field existed.
+	LineStartOffsetsSec []float64
 }

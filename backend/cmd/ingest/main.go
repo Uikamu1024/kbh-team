@@ -137,7 +137,7 @@ func run() error {
 	articleFetcher := fetcher.NewJinaFetcher(newClient(30 * time.Second))
 	languageModel := llm.FromEnv(newClient(60 * time.Second))
 	if articleFetcher.MockMode() {
-		log.Printf("JINA_AI_API_KEY is not set; mock article bodies will not be cached")
+		log.Printf("JINA_AI_API_KEY is not set; fetching unauthenticated from jina.ai Reader at its lower rate limit")
 	}
 	rssClient := newClient(30 * time.Second)
 
@@ -295,10 +295,6 @@ func ingestFeed(ctx context.Context, database *db.DB, rssClient *http.Client, ar
 		}
 		stats.bodySucceeded++
 		log.Printf("feed=%s fetched body %d/%d in %s: %s", feed.ID, stats.newItems, len(items), fetchDuration.Round(time.Millisecond), item.Link)
-		if articleFetcher.MockMode() {
-			// Mock bodies are never cached (backend/docs/generation/02-ingestion.md step 4).
-			continue
-		}
 		if utf8.RuneCountInString(fetched.Body) < minimumBodyRunes {
 			log.Printf("feed=%s skip short body for %q", feed.ID, item.Link)
 			continue

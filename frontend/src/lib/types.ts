@@ -10,6 +10,8 @@ export type ApiErrorCode =
   | "AUDIO_NOT_FOUND"
   | "ALREADY_GENERATING"
   | "RESET_LIMIT_EXCEEDED"
+  | "ARTICLE_CACHE_EMPTY"
+  | "NO_UNSEEN_ARTICLES"
   | "UPSTREAM_FETCH_FAILED"
   | "UPSTREAM_LLM_FAILED"
   | "UPSTREAM_TTS_FAILED"
@@ -57,7 +59,10 @@ export interface Chapter {
   script: string;
   audioUrl: string;
   durationSec: number;
-  importanceScore: number;
+  // scriptを改行分割した各行（空行除去前のインデックス）が実際に発話開始する、
+  // チャプター先頭からの経過秒数。本フィールド追加前に生成された番組では空配列
+  // になるため、フロント側は文字数比按分へフォールバックする（Player.tsx参照）。
+  lineStartOffsetsSec: number[];
 }
 
 export interface Program {
@@ -86,8 +91,25 @@ export interface BatchRunResponse {
   acceptedAt: string;
 }
 
+export interface RegenerateAcceptedResponse {
+  acceptedAt: string;
+}
+
 export interface HealthResponse {
   status: "ok" | "error";
   postgres: "ok" | "error";
   voicevox: "ok" | "error";
+}
+
+export type GenerationStage = "collecting" | "scripting" | "finishing";
+
+export interface GenerationLastError {
+  code: ApiErrorCode;
+  message: string;
+}
+
+export interface GenerationStatusResponse {
+  generating: boolean;
+  stage?: GenerationStage;
+  lastError?: GenerationLastError;
 }

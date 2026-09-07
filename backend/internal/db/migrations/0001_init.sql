@@ -27,6 +27,22 @@ CREATE TABLE IF NOT EXISTS chapters (
   duration_sec INT NOT NULL
 );
 
+-- Pre-existing databases created before the RSS-cache redesign (see
+-- backend/docs/generation/) may still carry this column from the old
+-- LLM-importance-scoring pipeline. Nothing in the current codebase writes to
+-- it, and CREATE TABLE IF NOT EXISTS above does not retrofit already-existing
+-- tables, so it's dropped explicitly here to unblock program saves on those
+-- databases (a NOT NULL column no INSERT ever populates fails every insert).
+ALTER TABLE chapters DROP COLUMN IF EXISTS importance_score;
+
+-- Real per-line speech-start offsets (seconds from chapter start), computed
+-- during TTS synthesis (backend/internal/pipeline/tts.go's combineLineAudio)
+-- from actual synthesized-audio durations. NOT NULL with an empty-array
+-- default so chapters saved before this column existed still scan cleanly;
+-- the frontend (frontend/src/pages/Player.tsx) falls back to its old
+-- character-count heuristic when this is empty.
+ALTER TABLE chapters ADD COLUMN IF NOT EXISTS line_start_offsets_sec DOUBLE PRECISION[] NOT NULL DEFAULT '{}'::double precision[];
+
 CREATE INDEX IF NOT EXISTS programs_user_created_at_idx
   ON programs (user_id, created_at DESC);
 

@@ -31,27 +31,35 @@ func NewFirecrawlFetcher(client *http.Client) *FirecrawlFetcher {
 	return &FirecrawlFetcher{client: client}
 }
 
-// FetchArticles discovers real article URLs for each requested tag via its
-// mapped RSS feed (tagFeeds, shared with JinaFetcher), then fetches each one
-// through the Firecrawl scrape API. When FIRECRAWL_API_KEY is unset, it
-// returns deterministic local mock articles (unlike jina.ai Reader, Firecrawl
-// has no documented unauthenticated tier to fall back to).
+// FetchArticles discovers real article URLs for the requested tags via their
+// mapped RSS feed(s) (feedsForTag/uniqueFeedsForTags, shared with
+// JinaFetcher), then fetches each one through the Firecrawl scrape API. When
+// FIRECRAWL_API_KEY is unset, it returns deterministic local mock articles
+// (unlike jina.ai Reader, Firecrawl has no documented unauthenticated tier
+// to fall back to).
 func (f *FirecrawlFetcher) FetchArticles(ctx context.Context, tags []string) ([]domain.Article, error) {
 	if strings.TrimSpace(os.Getenv("FIRECRAWL_API_KEY")) == "" {
 		return mockArticles(tags, "firecrawl"), nil
 	}
 
+	feeds := uniqueFeedsForTags(tags)
+	if len(feeds) == 0 {
+		return nil, nil
+	}
+	perFeedLimit := (maxArticlesPerGeneration + len(feeds) - 1) / len(feeds)
+
 	articles := make([]domain.Article, 0)
-	for _, tag := range tags {
-		sourceURLs, err := fetchFeedURLs(ctx, f.client, feedURLForTag(tag), maxArticlesPerTag)
+	for _, feedURL := range feeds {
+		sourceURLs, err := fetchFeedURLs(ctx, f.client, feedURL, perFeedLimit)
 		if err != nil {
-			return nil, fmt.Errorf("fetch RSS feed for tag %q: %w", tag, err)
+			log.Printf("fetcher: skipping feed %q: %v", feedURL, err)
+			continue
 		}
 
 		for _, sourceURL := range sourceURLs {
 			article, err := f.fetchArticle(ctx, sourceURL)
 			if err != nil {
-				log.Printf("fetcher: skipping article %q for tag %q: %v", sourceURL, tag, err)
+				log.Printf("fetcher: skipping article %q: %v", sourceURL, err)
 				continue
 			}
 			articles = append(articles, article)

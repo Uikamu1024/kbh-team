@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, getLatestProgram, getUser, listPrograms } from "@/lib/api";
 import { useUserId } from "@/lib/useUserId";
 import { getDisplayName } from "@/lib/user";
 import { usePlayback } from "@/lib/PlaybackContext";
 import { useGenerateProgram } from "@/lib/useGenerateProgram";
+import { GENERATING_STATUS_MESSAGES } from "@/lib/generationStage";
 import { formatDateLabel, formatMinutesLabel } from "@/lib/format";
 import type { Program, ProgramSummary } from "@/lib/types";
 
@@ -22,8 +23,19 @@ export default function Home() {
   const [history, setHistory] = useState<ProgramSummary[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [attempt, setAttempt] = useState(0);
-  const { generating, error: generateError, generate } = useGenerateProgram();
+  const { generating, error: generateError, stage, generate } = useGenerateProgram();
   const requestKey = `${userId}:${attempt}`;
+  const previousGeneratingRef = useRef(generating);
+
+  // 作り直し（Profile画面等、この画面以外から開始された場合を含む）が終わった
+  // タイミングで一覧・番組を再取得し、切り替わったことが画面に反映されるようにする
+  // （useGenerateProgram側のonReadyはこの画面が生成を開始した場合にしか呼ばれないため）。
+  useEffect(() => {
+    if (previousGeneratingRef.current && !generating) {
+      setAttempt((n) => n + 1);
+    }
+    previousGeneratingRef.current = generating;
+  }, [generating]);
 
   useEffect(() => {
     if (!userId) return;
@@ -129,10 +141,13 @@ export default function Home() {
           onClick={handleGenerateNow}
           className="mt-4 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {generating ? "生成しています…" : "今すぐ生成する"}
+          {generating ? GENERATING_STATUS_MESSAGES[stage ?? "collecting"] : "今すぐ生成する"}
         </button>
         {generating && (
-          <p className="text-xs text-text-tertiary">数十秒〜1分ほどかかります</p>
+          <p className="text-xs text-text-tertiary">
+            通常1〜6分ほどかかります。この画面を閉じたり更新したりしても生成は続くので、
+            後でまた開いて確認してください
+          </p>
         )}
         {generateError && <p className="text-sm text-danger">{generateError}</p>}
       </div>
@@ -161,6 +176,17 @@ export default function Home() {
           関心のあるテーマから、新しい動きを短くまとめています。
         </span>
       </section>
+
+      {generating && (
+        <section className="mt-3 rounded-xl border border-signal bg-signal-soft px-3.5 py-3">
+          <p className="m-0 text-[13px] font-semibold text-signal">
+            番組を作り直しています…（{GENERATING_STATUS_MESSAGES[stage ?? "collecting"]}）
+          </p>
+          <p className="m-0 mt-1 text-xs text-text-tertiary">
+            通常1〜6分ほどかかります。完了すると自動で切り替わります。
+          </p>
+        </section>
+      )}
 
       <section className="my-4.5 flex flex-col items-center gap-4 border-y border-bg-elevated-3 py-4.5">
         <button

@@ -4,16 +4,11 @@ import { putUserTags } from "@/lib/api";
 import { useUserId } from "@/lib/useUserId";
 import { setDisplayName } from "@/lib/user";
 import { useGenerateProgram } from "@/lib/useGenerateProgram";
+import { GENERATING_STATUS_MESSAGES, GENERATION_STAGE_ORDER } from "@/lib/generationStage";
 import { MIN_TAGS } from "@/lib/presetTags";
 import { TagPicker } from "@/components/TagPicker";
 
 type Step = "name" | "tags" | "generating";
-
-const GENERATING_STATUS_MESSAGES = [
-  "ニュースを集めています",
-  "内容を読みやすく整理しています",
-  "番組を準備しています",
-] as const;
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -23,8 +18,8 @@ export default function Onboarding() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [statusIndex, setStatusIndex] = useState(0);
-  const { error: generateError, generate } = useGenerateProgram();
+  const { error: generateError, stage, generate } = useGenerateProgram();
+  const statusIndex = stage ? GENERATION_STAGE_ORDER.indexOf(stage) : 0;
 
   const canSubmitName = name.trim().length > 0;
   const canSubmitTags = !!userId && selectedTags.length >= MIN_TAGS && !submitting;
@@ -43,20 +38,14 @@ export default function Onboarding() {
     }
   }
 
-  // 生成中画面: 見た目上の進捗ステータスを一定間隔で進めつつ（演出用、実際の
-  // 完了とは連動しない）、裏で本物の生成（batch/run + ポーリング）を実行する。
+  // 生成中画面: 見た目上の進捗ステータス（statusIndex）は、裏で実行する本物の
+  // 生成（regenerateLatestProgram、その場で記事取得〜音声化まで行う同期API）を
+  // useGenerateProgramがポーリングして取得した実際の進行段階と連動する。
   // 完了/失敗どちらでも一旦ホームへ進める（失敗時はホーム側の「今すぐ生成する」
   // ボタンで再試行できる）。
   useEffect(() => {
     if (step !== "generating") return;
-    // このstepには一度しか入らない導線のため、statusIndexの初期値0のリセットは
-    // 不要（useStateの初期値のままでよい）
-    const timers = [
-      setTimeout(() => setStatusIndex(1), 900),
-      setTimeout(() => setStatusIndex(2), 1800),
-    ];
     generate(() => navigate("/home", { replace: true }));
-    return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
@@ -190,11 +179,15 @@ export default function Onboarding() {
       <p className="mt-3.5 text-sm leading-relaxed text-text-secondary">
         {selectedTags.join("・")}から、今朝の話題をまとめています。
       </p>
+      <p className="mt-2 text-xs text-text-tertiary">
+        通常1〜6分ほどかかります。この画面を閉じたり更新したりしても生成は続くので、
+        後でまた開いて確認してください
+      </p>
 
       <div className="mt-8.5 flex flex-col gap-3 border-t border-bg-elevated-3 pt-4.5" aria-live="polite">
-        {GENERATING_STATUS_MESSAGES.map((message, index) => (
+        {GENERATION_STAGE_ORDER.map((stageKey, index) => (
           <p
-            key={message}
+            key={stageKey}
             className={`relative m-0 pl-5.5 text-xs leading-relaxed ${
               index <= statusIndex ? "text-text-primary" : "text-text-tertiary"
             }`}
@@ -206,7 +199,7 @@ export default function Onboarding() {
                   : "border-text-tertiary bg-transparent"
               }`}
             />
-            {message}
+            {GENERATING_STATUS_MESSAGES[stageKey]}
           </p>
         ))}
       </div>

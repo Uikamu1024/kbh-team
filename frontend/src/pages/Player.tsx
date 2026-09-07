@@ -51,26 +51,39 @@ export default function Player() {
 
   const { status, program, chapterIndex, chapterDurations, chapterElapsed, isPlaying } = playback;
   const chapter = program?.chapters[chapterIndex] ?? null;
-  const lines = useMemo(
-    () => (chapter ? chapter.script.split("\n").filter((line) => line.trim() !== "") : []),
+  const rawLines = useMemo(
+    () => (chapter ? chapter.script.split("\n") : []),
     [chapter],
   );
-  // 各行の開始位置（進捗比率0〜1）。チャプターには文単位のタイムスタンプが
-  // 無いため（docs/api-contract.yamlのx-open-questions参照）、行の文字数に
-  // 比例して読み上げ時間を按分する。均等割りだと長い行・短い行で実際の音声と
-  // 数秒単位でずれるため、TTSの読み上げ速度がおおよそ文字数に比例するという
-  // 前提（backend側のestimatedCharactersPerMinuteと同じ考え方）で近似する。
-  const lineStartRatios = useMemo(() => {
-    const totalChars = lines.reduce((sum, line) => sum + line.length, 0);
-    if (totalChars === 0) return lines.map((_, i) => i / Math.max(1, lines.length));
-    const ratios: number[] = [];
+
+  // 実測値（lineStartOffsetsSec）が無い/空/行数不一致（＝本フィールド追加前の
+  // 旧番組）の場合は、以前と同じ文字数按分に秒数換算してフォールバックする。
+  const lineStartOffsetsSec = useMemo(() => {
+    if (!chapter) return [];
+    const real = chapter.lineStartOffsetsSec;
+    if (real && real.length === rawLines.length) return real;
+    const duration = chapterDurations[chapterIndex] ?? chapter.durationSec;
+    const totalChars = rawLines.reduce((sum, line) => sum + line.length, 0);
+    if (totalChars === 0) {
+      return rawLines.map((_, i) => (i / Math.max(1, rawLines.length)) * duration);
+    }
+    const offsets: number[] = [];
     let acc = 0;
-    for (const line of lines) {
-      ratios.push(acc / totalChars);
+    for (const line of rawLines) {
+      offsets.push((acc / totalChars) * duration);
       acc += line.length;
     }
-    return ratios;
-  }, [lines]);
+    return offsets;
+  }, [chapter, rawLines, chapterDurations, chapterIndex]);
+
+  // 空行を除去する前に行とオフセットをペアにしておく（除去後のインデックスずれを防ぐ）
+  const visibleLines = useMemo(
+    () =>
+      rawLines
+        .map((text, i) => ({ text, offsetSec: lineStartOffsetsSec[i] ?? 0 }))
+        .filter((line) => line.text.trim() !== ""),
+    [rawLines, lineStartOffsetsSec],
+  );
   const waveform = useMemo(
     () => (chapter ? buildWaveformHeights(chapter.id) : []),
     [chapter],
@@ -120,8 +133,8 @@ export default function Player() {
   const chapterDuration = chapterDurations[chapterIndex] ?? chapter.durationSec;
   const progressRatio = chapterDuration > 0 ? chapterElapsed / chapterDuration : 0;
   let activeLineIndex = 0;
-  for (let i = 0; i < lineStartRatios.length; i++) {
-    if (progressRatio >= lineStartRatios[i]) activeLineIndex = i;
+  for (let i = 0; i < visibleLines.length; i++) {
+    if (chapterElapsed >= visibleLines[i].offsetSec) activeLineIndex = i;
   }
   const playedBars = Math.round(waveform.length * progressRatio);
 
@@ -141,7 +154,7 @@ export default function Player() {
           DAILY / {String(chapterIndex + 1).padStart(2, "0")}
         </span>
         <div className="relative z-[1] flex flex-col justify-end gap-2">
-          {lines.map((line, i) => (
+          {visibleLines.map((line, i) => (
             <p
               key={i}
               className={`m-0 font-semibold leading-relaxed transition-all duration-300 ${
@@ -150,7 +163,7 @@ export default function Player() {
                   : "text-[13px] text-white/50"
               }`}
             >
-              {line}
+              {line.text}
             </p>
           ))}
         </div>
