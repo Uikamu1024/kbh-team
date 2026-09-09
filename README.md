@@ -156,13 +156,6 @@ npm run dev
 - フロントエンド単体のコマンドは[frontend/README.md](frontend/README.md)を参照
 - APIが一通り疎通しているかの簡易確認は`backend/tests/smoke.sh`が使える（詳細は[backend/tests/README.md](backend/tests/README.md)）
 
-## チーム
-
-| 役割 | 名前 | GitHub |
-| --- | --- | --- |
-| フロントエンド | Seiya | Uikamu1024 |
-| バックエンド| Sorato | wew-ptr |
-| デザイン | Ryuuki | kotoni1030 |
 
 ---
 
